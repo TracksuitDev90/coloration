@@ -554,7 +554,7 @@ body {
   /* Color swatches are the game — no border, no inset shadow, no gloss.
      The grid gap separates them; any tint here would distort the answer. */
   border: 0;
-  border-radius: 8px;
+  border-radius: 9px;
   aspect-ratio: 1 / 1;
   cursor: pointer;
   position: relative;
@@ -988,7 +988,12 @@ body {
   .stage {
     max-width: 1120px;
     display: grid;
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    /* Slightly wider board column (and slightly narrower photo column) so
+       the colour swatches read about 10% larger on desktop without
+       breaking the bottom-aligned photo/board pairing. The photo still
+       dominates the layout because its column is ~1.23× the board column,
+       and the photo's own max-height ceiling caps how tall it can grow. */
+    grid-template-columns: minmax(0, 2.7fr) minmax(0, 2.2fr);
     grid-template-areas:
       "photo     title"
       "photo     board"
