@@ -1,12 +1,28 @@
 // Shade-grid generator. Builds a 4x4 (or arbitrary) board of shades around
-// a correct hex color, with the correct cell at a seeded random position.
+// a correct hex color, with the correct cell at a seeded random position
+// that can land anywhere on the board and changes every round.
 //
 // The grid is generated in OKLab/OKLCH (perceptually uniform) so neighbor
 // difficulty is consistent across hues — a chroma step on Tweety yellow
-// looks about as different as the same step on a dusty pink. The ramp is
-// centered on the correct cell: rows and columns are assigned balanced
-// signed offsets around the answer, so the correct cell sits in the
-// middle of the visible spread instead of at one end of a monotone ramp.
+// looks about as different as the same step on a dusty pink.
+//
+// Each cell comes from one of two sources, stitched together so the board
+// always has a satisfying mix regardless of where the correct cell lands:
+//
+//   1. Memory anchors — fixed perceptual variants of the correct color
+//      (pale-cream, deep-rich, warm-shifted, cool-shifted). These are
+//      absolute transformations of the answer, not offsets from the
+//      ramp, so a player always sees both a lighter AND a richer plausible
+//      version even when correct sits near a gamut edge. Anchors are
+//      placed on the cells farthest from correct so the inner cells
+//      stay close.
+//   2. A perceptual ramp around correct — balanced signed offsets in
+//      OKLab on the row and column axes. Fills the remaining cells with
+//      "throw-off" shades close to the answer.
+//
+// Anchors stay inside the same color family: their hue rotates by at
+// most ~25° on the OKLCH circle, and chroma is floored so decoys never
+// drift into a different family (no green Pikachu, no purple Shrek).
 
 // --- Legacy HSL helpers (still used by quad.js and daily.js) ------------
 
@@ -282,7 +298,12 @@ function inspectGrid(cells, correctHex, ceilingMax) {
       if (d < DELTA_E_CORRECT_MIN) {
         floorViolation += DELTA_E_CORRECT_MIN - d;
       }
-      if (d > ceilingMax) {
+      // Memory anchors are deliberate perceptual variants of correct and
+      // sit further away by design (a pale-cream Pikachu is ~25-35 ΔE
+      // from saturated yellow Pikachu). Exempt them from the ceiling
+      // check; the anchor builder already bounds them inside the same
+      // color family via chroma floor + ±25° hue cap.
+      if (cell.source !== 'anchor' && d > ceilingMax) {
         ceilingViolation += d - ceilingMax;
       }
     }
@@ -345,6 +366,162 @@ function assignOffsets(rng, n, correctIdx, baseStep, upRoom, downRoom) {
 
 function jitter(rng, base) {
   return base * (JITTER_LO + rng() * (JITTER_HI - JITTER_LO));
+}
+
+// --- Memory anchors -----------------------------------------------------
+//
+// Curated perceptual variants of the correct color. Each anchor is a
+// "plausible memory" — a deeper-golden Pikachu, a pale-cream Pikachu, a
+// mustard Pikachu, a lemon Pikachu — that always sits inside the same
+// broad color family.
+//
+// Margins on the floor checks: anchors are frozen (never nudged in
+// dedup), so we keep them comfortably above the global ΔE floors to
+// leave headroom for floating-point and gamut clamping.
+const ANCHOR_FLOOR_MARGIN = 1.0;
+const ANCHOR_HUE_SHIFT_MIN = 18;
+const ANCHOR_HUE_SHIFT_MAX = 25;
+const ANCHOR_TARGET = 5;
+
+function memoryAnchorsFor(base, rng) {
+  const isNeutral = base.C < NEUTRAL_CHROMA_THRESHOLD;
+  const effLMin = Math.min(L_MIN, base.L);
+  const effLMax = Math.max(L_MAX, base.L);
+  const upRoom = effLMax - base.L;
+  const downRoom = base.L - effLMin;
+
+  // Build a candidate pool of transformations. Order matters — earlier
+  // candidates have priority when too many would otherwise collide. The
+  // pale-cream / deep-rich pair is the user-requested core; hue shifts
+  // and the vivid pop fill out the "memory variants" feel.
+  const candidates = [];
+
+  // Chromatic colors get pale-cream / deep-rich regardless of L headroom:
+  // even when L is clamped (e.g. Pikachu at L≈0.92 has only ~0.03 upRoom),
+  // the chroma drop from saturated to ~45% reads as a clearly creamier
+  // memory of the character. The ΔE filter at the end of this function
+  // drops candidates that didn't get enough perceptual movement.
+  // Neutrals don't have chroma to fall back on, so they need the L-room
+  // guard to avoid emitting a duplicate of correct.
+  if (!isNeutral || upRoom > 0.04) {
+    candidates.push({
+      L: base.L + Math.min(0.18, Math.max(0, upRoom)),
+      C: isNeutral ? base.C : base.C * 0.45,
+      H: base.H,
+      kind: 'pale-cream',
+    });
+  }
+  if (!isNeutral || downRoom > 0.04) {
+    const L = base.L - Math.min(0.18, Math.max(0, downRoom));
+    candidates.push({
+      L,
+      C: isNeutral ? base.C : Math.min(maxChromaAt(L, base.H), base.C * 1.25 + 0.02),
+      H: base.H,
+      kind: 'deep-rich',
+    });
+  }
+
+  if (!isNeutral) {
+    const warmShift = ANCHOR_HUE_SHIFT_MIN + rng() * (ANCHOR_HUE_SHIFT_MAX - ANCHOR_HUE_SHIFT_MIN);
+    const coolShift = ANCHOR_HUE_SHIFT_MIN + rng() * (ANCHOR_HUE_SHIFT_MAX - ANCHOR_HUE_SHIFT_MIN);
+    const warmH = (base.H + warmShift + 360) % 360;
+    const coolH = (base.H - coolShift + 360) % 360;
+    candidates.push({
+      L: base.L,
+      C: Math.min(base.C, maxChromaAt(base.L, warmH) * 0.95),
+      H: warmH,
+      kind: 'warm-shift',
+    });
+    candidates.push({
+      L: base.L,
+      C: Math.min(base.C, maxChromaAt(base.L, coolH) * 0.95),
+      H: coolH,
+      kind: 'cool-shift',
+    });
+    // Vivid pop — same hue but pushed toward gamut. Skipped for already-
+    // saturated colors where pushing chroma further changes nothing.
+    if (base.C < 0.18) {
+      candidates.push({
+        L: base.L,
+        C: Math.min(maxChromaAt(base.L, base.H), base.C * 1.3 + 0.03),
+        H: base.H,
+        kind: 'vivid-pop',
+      });
+    }
+  } else {
+    // Neutrals: a third lightness variant in each direction, no hue
+    // rotation since there's no chromatic family to drift toward.
+    if (upRoom > 0.06) {
+      candidates.push({
+        L: base.L + Math.min(0.10, upRoom),
+        C: base.C,
+        H: base.H,
+        kind: 'paler',
+      });
+    }
+    if (downRoom > 0.06) {
+      candidates.push({
+        L: base.L - Math.min(0.10, downRoom),
+        C: base.C,
+        H: base.H,
+        kind: 'darker',
+      });
+    }
+  }
+
+  // Secondary lightness variants — used as backups if a primary anchor
+  // had to be dropped at gamut edges (extreme-L correct colors).
+  if (!isNeutral && upRoom > 0.06) {
+    candidates.push({
+      L: base.L + Math.min(0.10, upRoom),
+      C: base.C * 0.70,
+      H: base.H,
+      kind: 'softer',
+    });
+  }
+  if (!isNeutral && downRoom > 0.06) {
+    candidates.push({
+      L: base.L - Math.min(0.10, downRoom),
+      C: Math.min(maxChromaAt(base.L - Math.min(0.10, downRoom), base.H), base.C * 1.10),
+      H: base.H,
+      kind: 'muted-deep',
+    });
+  }
+
+  const correctHex = hexFromOklch(base.L, base.C, base.H);
+  const kept = [];
+  for (const cand of candidates) {
+    const hex = hexFromOklch(cand.L, cand.C, cand.H);
+    if (deltaE(hex, correctHex) < DELTA_E_CORRECT_MIN + ANCHOR_FLOOR_MARGIN) continue;
+    if (kept.some(k => deltaE(hex, k.hex) < DELTA_E_PAIR_MIN + ANCHOR_FLOOR_MARGIN)) continue;
+    kept.push({ hex, kind: cand.kind });
+    if (kept.length >= ANCHOR_TARGET) break;
+  }
+  return kept;
+}
+
+// Pick the cells on the grid farthest from the correct cell (Chebyshev
+// distance) so anchors land on the visual perimeter and the ramp fills
+// the inner ring. Ties broken by Euclidean distance then by seeded rng
+// so the layout still varies round-to-round.
+function pickAnchorPositions(rows, cols, correctRow, correctCol, count, rng) {
+  if (count <= 0) return [];
+  const positions = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (r === correctRow && c === correctCol) continue;
+      const dr = r - correctRow;
+      const dc = c - correctCol;
+      positions.push({
+        r, c,
+        cheb: Math.max(Math.abs(dr), Math.abs(dc)),
+        euc: dr * dr + dc * dc,
+        rand: rng(),
+      });
+    }
+  }
+  positions.sort((a, b) => b.cheb - a.cheb || b.euc - a.euc || a.rand - b.rand);
+  return positions.slice(0, count);
 }
 
 // Single attempt at building a grid. The retry loop in `buildGrid` calls
@@ -472,7 +649,13 @@ function generateGridOnce(correctHex, opts, inflate) {
     const row = [];
     for (let c = 0; c < cols; c++) {
       if (r === correctRow && c === correctCol) {
-        row.push({ row: r, col: c, hex: correctHex.toUpperCase(), isCorrect: true });
+        row.push({
+          row: r,
+          col: c,
+          hex: correctHex.toUpperCase(),
+          isCorrect: true,
+          source: 'correct',
+        });
         continue;
       }
       const L = clamp(base.L + rowDeltaL[r] + colDeltaL[c], effLMin, effLMax);
@@ -484,9 +667,27 @@ function generateGridOnce(correctHex, opts, inflate) {
         L, C, H,
         hex: hexFromOklch(L, C, H),
         isCorrect: false,
+        source: 'ramp',
       });
     }
     cells.push(row);
+  }
+
+  // Overlay memory anchors on the cells farthest from correct. The anchor
+  // RNG is forked from the stable seed (not mixed with the retry attempt)
+  // so anchor identities and positions are deterministic across retries
+  // — the ramp inflates around them, never replacing them.
+  const anchorRng = mulberry32(baseSeed * 2654435761 + 53);
+  const anchors = memoryAnchorsFor(base, anchorRng);
+  if (anchors.length > 0) {
+    const anchorPositions = pickAnchorPositions(rows, cols, correctRow, correctCol, anchors.length, anchorRng);
+    for (let i = 0; i < anchorPositions.length; i++) {
+      const { r, c } = anchorPositions[i];
+      const target = cells[r][c];
+      target.hex = anchors[i].hex.toUpperCase();
+      target.source = 'anchor';
+      target.anchorKind = anchors[i].kind;
+    }
   }
 
   // Final dedup pass: pathological cases (pure white at L=1.0 with zero
@@ -501,20 +702,27 @@ function generateGridOnce(correctHex, opts, inflate) {
   const NUDGE_STEP = 0.006;
   const NUDGE_MAX = 0.04;
   const flat = cells.flat();
-  // Seed `accepted` with the correct cell up front. Otherwise decoys
-  // iterated BEFORE the correct cell in row-major order wouldn't be
-  // checked against it — at extreme L (#FFFFFF) those decoys are often
-  // also gamut-clipped to pure white, creating duplicates of the answer.
+  // Seed `accepted` with the correct cell + every anchor up front. Both
+  // are frozen perceptual values — the dedup loop must respect them as
+  // immovable, only nudging ramp cells that collide. Without this seed,
+  // a ramp cell iterated before the correct or an anchor wouldn't see
+  // it during the collision check (extreme-L Brain white in particular
+  // gamut-clips ramp cells to pure white, creating duplicates of the
+  // answer).
   const correctCell = flat.find(c => c.isCorrect);
-  const accepted = correctCell ? [correctCell] : [];
+  const accepted = [];
+  if (correctCell) accepted.push(correctCell);
   for (const cell of flat) {
-    if (cell === correctCell) {
+    if (cell !== correctCell && cell.source === 'anchor') accepted.push(cell);
+  }
+  for (const cell of flat) {
+    if (cell === correctCell || cell.source === 'anchor') {
       delete cell.L; delete cell.C; delete cell.H;
       continue;
     }
     let nudge = 0;
     let attempt = 0;
-    const tooClose = () => accepted.some(p => deltaE(p.hex, cell.hex) < SEP_MIN);
+    const tooClose = () => accepted.some(p => p !== cell && deltaE(p.hex, cell.hex) < SEP_MIN);
     while (tooClose() && nudge <= NUDGE_MAX) {
       attempt++;
       // Walk nudge magnitude outward, alternating direction so the
