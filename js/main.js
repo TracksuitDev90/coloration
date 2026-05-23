@@ -613,6 +613,20 @@ const ARM_MOVE_PX = 10;
 const ARM_SCROLL_PX = 4;
 const ARM_MAX_MS = 500;
 
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+function spawnRipple(btn, e) {
+  if (prefersReducedMotion.matches) return;
+  const rect = btn.getBoundingClientRect();
+  const span = document.createElement('span');
+  span.className = 'ripple';
+  span.style.left = (e.clientX - rect.left) + 'px';
+  span.style.top = (e.clientY - rect.top) + 'px';
+  btn.appendChild(span);
+  span.addEventListener('animationend', () => span.remove(), { once: true });
+  setTimeout(() => { if (span.parentNode) span.remove(); }, 600);
+}
+
 function attachArmedTap(btn, commit) {
   let armed = null;
 
@@ -635,6 +649,7 @@ function attachArmedTap(btn, commit) {
     };
     btn.classList.add('cell--armed');
     try { btn.setPointerCapture(e.pointerId); } catch {}
+    spawnRipple(btn, e);
   });
 
   btn.addEventListener('pointermove', (e) => {
