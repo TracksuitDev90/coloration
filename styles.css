@@ -558,6 +558,7 @@ body {
   aspect-ratio: 1 / 1;
   cursor: pointer;
   position: relative;
+  overflow: hidden;
   padding: 0;
   touch-action: manipulation;
   transition:
@@ -659,6 +660,28 @@ body {
   opacity: 0.5;
   filter: saturate(0.7);
   cursor: default;
+}
+
+/* ---------- Ripple ---------- */
+@keyframes cell-ripple {
+  0%   { transform: translate(-50%, -50%) scale(0); opacity: 0.36; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+  width: 280%;
+  height: 280%;
+  animation: cell-ripple 500ms var(--ease-out) forwards;
+  z-index: 0;
+}
+
+.cell--wrong::after,
+.cell--correct::after {
+  z-index: 1;
 }
 
 /* ---------- Share card ---------- */
@@ -932,6 +955,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation: none; }
   .toast { transition: opacity 200ms ease; transform: translate(-50%, 0); }
+  .ripple { animation: none; display: none; }
 }
 
 /* ---------- Breakpoints ---------- */
@@ -948,10 +972,13 @@ body {
     font-size: 11px;
   }
   .tab { padding: 10px 18px; min-height: 44px; }
-  .character-title { font-size: clamp(20px, 6vw, 26px); }
+  .character-title { font-size: clamp(20px, 6vw, 26px); min-height: 1em; }
   .btn { padding: 12px 20px; min-height: 48px; }
   .actions { gap: 10px; }
   .share-actions .btn { flex: 1 1 100%; min-width: 0; max-width: none; }
+  .stage { gap: 8px; padding: 8px 12px; }
+  .tabs { margin-top: 8px; }
+  .board { grid-template-columns: 22px 1fr; grid-template-rows: 22px 1fr; }
 }
 
 /* Phones (anything below the desktop two-column threshold): bound the
@@ -965,7 +992,7 @@ body {
    stay stable across iOS Safari's address-bar collapse. */
 @media (max-width: 759px) {
   :root {
-    --photo-max-h: max(180px, min(40dvh, 100dvh - 440px));
+    --photo-max-h: max(120px, min(28dvh, 100dvh - 560px));
   }
 }
 
