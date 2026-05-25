@@ -981,18 +981,87 @@ body {
   .board { grid-template-columns: 22px 1fr; grid-template-rows: 22px 1fr; }
 }
 
-/* Phones (anything below the desktop two-column threshold): bound the
-   photo height so the colour board can fit within the same viewport,
-   removing the scroll that previously sat between photo and grid. The
-   inner `min()` reserves ~440px of vertical room for the title, board,
-   gaps, and stage padding so the photo yields space on shorter phones
-   instead of crowding the swatches off-screen; the outer `max()` keeps
-   the photo from collapsing to nothing in landscape orientation, where
-   it's better to allow a small scroll than show a sliver. dvh units
-   stay stable across iOS Safari's address-bar collapse. */
+/* Phones: full-width photo, flexible swatches, no scroll. The stage
+   fills the remaining viewport height after the topbar and tabs. The
+   photo goes edge-to-edge at its natural 4:3 ratio (capped on very
+   short phones). The quad/board absorbs whatever height remains so
+   colour swatches are always visible without scrolling. */
 @media (max-width: 759px) {
-  :root {
-    --photo-max-h: max(120px, min(28dvh, 100dvh - 560px));
+  .stage {
+    min-height: 0;
+    overflow-y: clip;
+    padding: 6px 0;
+    gap: 6px;
+  }
+
+  .card {
+    flex: 0 0 auto;
+  }
+
+  .photo {
+    width: 100%;
+    aspect-ratio: unset;
+    height: min(calc(100vw * 3 / 4), 38dvh);
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .photo img {
+    object-position: center;
+  }
+
+  .character-title {
+    flex-shrink: 0;
+    padding: 0 14px;
+    font-size: clamp(16px, 4.5vw, 22px);
+    min-height: auto;
+  }
+
+  .board {
+    flex: 1 1 0;
+    min-height: 100px;
+  }
+
+  .grid {
+    height: 100%;
+  }
+
+  .quad {
+    flex: 1 1 0;
+    min-height: 100px;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .cell {
+    aspect-ratio: auto;
+  }
+
+  .status {
+    flex-shrink: 0;
+    padding: 0 14px;
+    min-height: auto;
+  }
+
+  .countdown {
+    flex-shrink: 0;
+    min-height: auto;
+  }
+
+  .actions {
+    flex-shrink: 0;
+    padding: 0 14px;
+    margin-top: 0;
+  }
+
+  .tabs {
+    margin-top: 4px;
+  }
+
+  .bottombar {
+    display: none;
   }
 }
 
