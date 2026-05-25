@@ -232,11 +232,11 @@ body {
   white-space: nowrap;
 }
 
-#round-chip    { background: #dcc4f3; color: #5a1cc0; }
-#streak-chip   { background: #f8c4d8; color: #b01a5e; }
-#best-chip     { background: #f8e3a1; color: #7a5500; }
-.chip--guesses { background: #b3e8d7; color: #0a6a58; }
-.chip--skips   { background: #fbc9a3; color: #a64d0a; }
+#round-chip    { background: #bba7cf; color: #5a1cc0; }
+#streak-chip   { background: #d3a7b8; color: #b01a5e; }
+#best-chip     { background: #d3c189; color: #7a5500; }
+.chip--guesses { background: #98c5b7; color: #0a6a58; }
+.chip--skips   { background: #d5ab8b; color: #a64d0a; }
 
 .chip--skips.chip--depleted {
   background: #ced3dd;
@@ -716,8 +716,8 @@ body {
   text-align: center;
   font-family: "Outfit", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-weight: 300;
-  font-size: clamp(13px, 1.8vw, 16px);
-  color: var(--muted);
+  font-size: clamp(15px, 2.2vw, 18px);
+  color: #b8c0d0;
   min-height: 1.4em;
   line-height: 1.45;
 }
@@ -761,20 +761,15 @@ body {
 .btn:active { transform: translateY(0); }
 
 .btn--primary {
-  background: var(--grad-tab);
-  color: #0e1116;
-  border-color: transparent;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.18);
-  box-shadow:
-    0 10px 26px rgba(176, 107, 255, 0.40),
-    0 2px 6px rgba(255, 107, 181, 0.25),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.20);
+  background: #2a2d40;
+  color: var(--text);
+  border-color: var(--border-strong);
+  text-shadow: none;
+  box-shadow: var(--ring), 0 1px 0 rgba(0, 0, 0, 0.25);
 }
 .btn--primary:hover {
-  box-shadow:
-    0 14px 32px rgba(176, 107, 255, 0.50),
-    0 2px 6px rgba(255, 107, 181, 0.28),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+  background: #343750;
+  box-shadow: var(--ring), 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .btn--ghost {
@@ -999,12 +994,9 @@ body {
   }
 
   .photo {
-    width: 100%;
+    width: calc(100% - 24px);
     aspect-ratio: unset;
-    height: min(calc(100vw * 3 / 4), 38dvh);
-    border-radius: 0;
-    border-left: 0;
-    border-right: 0;
+    height: min(calc((100vw - 24px) * 3 / 4), 38dvh);
   }
 
   .photo img {
@@ -1028,14 +1020,12 @@ body {
   }
 
   .quad {
-    flex: 1 1 0;
-    min-height: 100px;
-    border-radius: 0;
-    border-left: 0;
-    border-right: 0;
+    flex: 0 0 auto;
+    width: calc(100% - 24px);
+    margin-inline: auto;
   }
 
-  .cell {
+  .grid .cell {
     aspect-ratio: auto;
   }
 
