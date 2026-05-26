@@ -805,29 +805,21 @@ body {
 }
 .btn--ghost:hover { color: var(--text); border-color: var(--border-strong); }
 
-/* Skip button: flat amber pill — solid fill with no drop shadow or inner
-   bevel, sized slightly larger than the default pill so players can find
-   it without it competing with the primary "Next" gradient. */
 #skip-btn.btn,
 #skip-btn.btn--ghost {
-  background: #ffb24d;
-  color: #2a1700;
-  border-color: transparent;
+  background: #3d2a10;
+  color: #ffb24d;
+  border-color: rgba(255, 178, 77, 0.25);
   text-shadow: none;
-  font-weight: 800;
-  padding: 14px 30px;
-  min-height: 52px;
-  font-size: 16px;
-  box-shadow: none;
+  box-shadow: var(--ring), 0 1px 0 rgba(0, 0, 0, 0.25);
 }
 #skip-btn.btn:hover {
-  color: #2a1700;
-  background: #ffbf66;
-  box-shadow: none;
+  background: #4a3214;
+  color: #ffbf66;
+  box-shadow: var(--ring), 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 #skip-btn.btn:active {
-  background: #f5a236;
-  box-shadow: none;
+  background: #2e1f0a;
 }
 
 .btn:focus-visible {
@@ -1127,8 +1119,10 @@ body {
      it reads as the question to the column it sits above, not as a
      left-anchored caption next to the photo. */
   .character-title { grid-area: title; align-self: end; text-align: center; }
-  .board           { grid-area: board; align-self: end; max-width: 100%; }
+  .board           { grid-area: board; align-self: stretch; min-height: 0; max-width: 100%; }
   .quad            { grid-area: board; align-self: end; max-width: 100%; }
+  .grid            { height: 100%; }
+  .grid .cell      { aspect-ratio: auto; }
   .status          { grid-area: status; }
   .share           { grid-area: share; }
   .countdown       { grid-area: countdown; }
