@@ -239,33 +239,33 @@ body {
 #round-chip {
   background: #1a1730;
   color: #c8a2ff;
-  border-bottom-color: #8b5cf6;
+  border-color: #8b5cf6;
 }
 #streak-chip {
   background: #2a1520;
   color: #ff7eb3;
-  border-bottom-color: #e8458b;
+  border-color: #e8458b;
 }
 #best-chip {
   background: #2a2210;
   color: #ffd76b;
-  border-bottom-color: #d4a020;
+  border-color: #d4a020;
 }
 .chip--guesses {
   background: #0f2a25;
   color: #5eecd5;
-  border-bottom-color: #2dbc9e;
+  border-color: #2dbc9e;
 }
 .chip--skips {
   background: #2a1a0f;
   color: #ffb36b;
-  border-bottom-color: #e0872e;
+  border-color: #e0872e;
 }
 
 .chip--skips.chip--depleted {
   background: #1a1d24;
   color: #5d6678;
-  border-bottom-color: #3a3f4a;
+  border-color: #3a3f4a;
 }
 
 /* ---------- Tabs ---------- */
