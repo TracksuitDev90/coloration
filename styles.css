@@ -182,11 +182,11 @@ body {
       90deg,
       rgba(255, 107, 181, 0.00)  0%,
       rgba(255, 107, 181, 0.00) 30%,
-      rgba(176, 107, 255, 0.05) 42%,
-      rgba(106, 169, 255, 0.10) 55%,
-      rgba(77,  217, 192, 0.15) 67%,
-      rgba(255, 215, 107, 0.22) 82%,
-      rgba(255, 107, 181, 0.35) 100%
+      rgba(176, 107, 255, 0.08) 42%,
+      rgba(106, 169, 255, 0.15) 55%,
+      rgba(77,  217, 192, 0.22) 67%,
+      rgba(255, 215, 107, 0.32) 82%,
+      rgba(255, 107, 181, 0.45) 100%
     ),
     linear-gradient(#f6efdc, #f6efdc);
   -webkit-background-clip: text;
@@ -406,6 +406,31 @@ body {
   width: 100%;
   display: flex;
   justify-content: center;
+  position: relative;
+}
+
+.swipe-label {
+  position: absolute;
+  bottom: -4px;
+  right: 12%;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.card.show-swipe-label .swipe-label {
+  animation: swipe-label-in 2s ease forwards;
+}
+
+@keyframes swipe-label-in {
+  0%   { opacity: 0; transform: translateX(-4px); }
+  15%  { opacity: 0.7; transform: translateX(0); }
+  70%  { opacity: 0.7; transform: translateX(0); }
+  100% { opacity: 0; transform: translateX(4px); }
 }
 
 .photo {
@@ -909,15 +934,15 @@ body {
 
 @keyframes swipe-hint {
   0%   { transform: translateX(0); }
-  20%  { transform: translateX(12px); }
-  45%  { transform: translateX(-8px); }
-  65%  { transform: translateX(5px); }
-  80%  { transform: translateX(-2px); }
+  18%  { transform: translateX(20px); }
+  42%  { transform: translateX(-14px); }
+  62%  { transform: translateX(8px); }
+  78%  { transform: translateX(-3px); }
   100% { transform: translateX(0); }
 }
 
 .photo.swipe-hint {
-  animation: swipe-hint 0.8s var(--ease-out) 0.4s both;
+  animation: swipe-hint 1s var(--ease-out) 0.4s both;
 }
 
 /* ---------- Spinner + inline retry ---------- */
@@ -984,6 +1009,7 @@ body {
   .toast { transition: opacity 200ms ease; transform: translate(-50%, 0); }
   .ripple { animation: none; display: none; }
   .photo.swipe-hint { animation: none; }
+  .card.show-swipe-label .swipe-label { animation: none; opacity: 0.5; }
 }
 
 /* ---------- Breakpoints ---------- */
