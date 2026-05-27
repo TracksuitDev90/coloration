@@ -463,6 +463,7 @@ function renderRound() {
   // Drop `revealed` before swapping src so the next paint always shows the
   // new image already grayscale — no momentary color flash between rounds.
   els.photoFrame.classList.remove('revealed', 'swipe-hint');
+  els.characterCard.classList.remove('show-swipe-label');
   // Clear any leftover transform/opacity from a swipe-advance.
   els.photoFrame.style.transform = '';
   els.photoFrame.style.opacity = '';
@@ -523,7 +524,7 @@ function renderRound() {
   updateSkipButton();
 
   if (!s.revealed && s.skipsLeft > 0) {
-    setTimeout(triggerSwipeHint, 600);
+    setTimeout(() => triggerSwipeHint('Swipe to skip ›'), 600);
   }
 }
 
@@ -806,7 +807,7 @@ function revealRound(announce = true, skipped = false) {
   } else {
     els.next.hidden = false;
     els.next.focus();
-    if (announce) setTimeout(triggerSwipeHint, 800);
+    if (announce) setTimeout(() => triggerSwipeHint('Swipe for next ›'), 800);
   }
   updateChips();
 }
@@ -915,18 +916,10 @@ attachSwipeToAdvance(els.photoFrame);
 
 function attachSwipeToAdvance(target) {
   if (!target) return;
-  // Touch needs a much higher commit threshold than mouse — a phone-edge
-  // thumb-flick crosses 60px easily while reading, and the swipe should feel
-  // intentional, not incidental.
-  const COMMIT_TOUCH = 110;
+  const COMMIT_TOUCH = 150;
   const COMMIT_MOUSE = 60;
-  // Don't lock direction (or hijack the gesture) until the pointer has moved
-  // this far. Below this we can't reliably tell scroll from swipe.
-  const DIRECTION_LOCK_DISTANCE = 16;
-  // Once we have enough motion to decide, dx must exceed dy by this ratio to
-  // count as a horizontal swipe. Anything flatter is treated as a scroll and
-  // the gesture is released for the rest of this touch.
-  const HORIZONTAL_RATIO = 1.5;
+  const DIRECTION_LOCK_DISTANCE = 28;
+  const HORIZONTAL_RATIO = 2.0;
 
   let active = false;
   let locked = null; // null | 'horizontal' | 'vertical'
@@ -956,6 +949,7 @@ function attachSwipeToAdvance(target) {
     if (swipeMode() === 'none') return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     target.classList.remove('swipe-hint');
+    els.characterCard.classList.remove('show-swipe-label');
     active = true;
     locked = null;
     pointerId = e.pointerId;
@@ -1234,7 +1228,7 @@ function flash(el, cls) {
   setTimeout(() => el.classList.remove(cls), 500);
 }
 
-function triggerSwipeHint() {
+function triggerSwipeHint(label) {
   if (prefersReducedMotion.matches) return;
   const el = els.photoFrame;
   el.classList.remove('swipe-hint');
@@ -1242,6 +1236,15 @@ function triggerSwipeHint() {
   el.classList.add('swipe-hint');
   el.addEventListener('animationend', () => {
     el.classList.remove('swipe-hint');
+  }, { once: true });
+  const card = els.characterCard;
+  const lbl = document.getElementById('swipe-label');
+  if (lbl) lbl.textContent = label || 'Swipe ›';
+  card.classList.remove('show-swipe-label');
+  void card.offsetWidth;
+  card.classList.add('show-swipe-label');
+  card.addEventListener('animationend', () => {
+    card.classList.remove('show-swipe-label');
   }, { once: true });
 }
 
