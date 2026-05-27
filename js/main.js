@@ -462,7 +462,7 @@ function renderRound() {
   els.characterCard.hidden = false;
   // Drop `revealed` before swapping src so the next paint always shows the
   // new image already grayscale — no momentary color flash between rounds.
-  els.photoFrame.classList.remove('revealed');
+  els.photoFrame.classList.remove('revealed', 'swipe-hint');
   // Clear any leftover transform/opacity from a swipe-advance.
   els.photoFrame.style.transform = '';
   els.photoFrame.style.opacity = '';
@@ -521,6 +521,10 @@ function renderRound() {
 
   updateChips();
   updateSkipButton();
+
+  if (!s.revealed && s.skipsLeft > 0) {
+    setTimeout(triggerSwipeHint, 600);
+  }
 }
 
 function promptText(c) {
@@ -802,6 +806,7 @@ function revealRound(announce = true, skipped = false) {
   } else {
     els.next.hidden = false;
     els.next.focus();
+    if (announce) setTimeout(triggerSwipeHint, 800);
   }
   updateChips();
 }
@@ -950,6 +955,7 @@ function attachSwipeToAdvance(target) {
   target.addEventListener('pointerdown', (e) => {
     if (swipeMode() === 'none') return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+    target.classList.remove('swipe-hint');
     active = true;
     locked = null;
     pointerId = e.pointerId;
@@ -1226,6 +1232,17 @@ function flash(el, cls) {
   void el.offsetWidth;
   el.classList.add(cls);
   setTimeout(() => el.classList.remove(cls), 500);
+}
+
+function triggerSwipeHint() {
+  if (prefersReducedMotion.matches) return;
+  const el = els.photoFrame;
+  el.classList.remove('swipe-hint');
+  void el.offsetWidth;
+  el.classList.add('swipe-hint');
+  el.addEventListener('animationend', () => {
+    el.classList.remove('swipe-hint');
+  }, { once: true });
 }
 
 const hardResetBtn = document.getElementById('hard-reset-btn');
