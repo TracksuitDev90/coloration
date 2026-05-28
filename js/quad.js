@@ -250,6 +250,17 @@ const PALETTES = {
     '#4A7C2E', // grass green
     '#FFD700', // sun yellow
   ],
+  // Kids Next Door — Sector V's canonical uniform colours. Numbuh 4's
+  // orange and Numbuh 1's red sit close on the hue wheel, which is the
+  // point: the round is harder because the player picks between
+  // teammates rather than rainbow distractors. Green (Numbuh 3) and blue
+  // (Numbuh 2) round out the team with clearly distinct families.
+  'kids-next-door': [
+    '#E2780B', // Numbuh 4 orange hoodie (mirrors items.json)
+    '#CA0D41', // Numbuh 1 red shirt (mirrors items.json)
+    '#3FA34D', // Numbuh 3 Kuki green sweater
+    '#2D6BAA', // Numbuh 2 Hoagie blue Hawaiian shirt
+  ],
 };
 
 const BOX_COUNT = 4;
