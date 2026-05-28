@@ -366,6 +366,7 @@
     "show": "Codename: Kids Next Door",
     "color": { "hex": "#CA0D41", "name": "Numbuh 1 Red" },
     "image": "assets/photos/numbuh-1-shirt.png",
+    "quadPalette": "kids-next-door",
     "verified": true
   },
   {
@@ -375,6 +376,7 @@
     "show": "Codename: Kids Next Door",
     "color": { "hex": "#E2780B", "name": "Numbuh 4 Orange" },
     "image": "assets/photos/numbuh-4-hoodie.png",
+    "quadPalette": "kids-next-door",
     "verified": true
   },
   {

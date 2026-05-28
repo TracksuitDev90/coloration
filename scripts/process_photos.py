@@ -17,7 +17,7 @@ The originals stay in assets/ for the record.
 """
 
 from pathlib import Path
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageFilter
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = REPO_ROOT / "assets"
@@ -554,12 +554,20 @@ def process(src_path, dst_path):
         )
 
     # Cap at a sensible maximum so retina screens stay sharp without
-    # shipping huge PNGs to phones. 2400 keeps source detail on hi-DPI
-    # displays without bloating bytes for typical sources.
-    MAX_W = 2400
+    # shipping huge PNGs to phones. 3000 covers DPR 3 phones/tablets at the
+    # photo's hero size without bloating bytes for typical sources.
+    MAX_W = 3000
     if cropped.width > MAX_W:
         new_h = round(cropped.height * MAX_W / cropped.width)
         cropped = cropped.resize((MAX_W, new_h), Image.LANCZOS)
+
+    # Lanczos resampling slightly softens edges; a light unsharp mask
+    # restores crispness on outlines/eyes/text without producing visible
+    # halos. Tuned conservatively — radius 1 / 80% / threshold 2 keeps
+    # smooth gradient regions untouched.
+    cropped = cropped.filter(
+        ImageFilter.UnsharpMask(radius=1.0, percent=80, threshold=2)
+    )
 
     cropped.save(dst_path, format="PNG", optimize=True)
     return cropped.size

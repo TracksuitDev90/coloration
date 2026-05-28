@@ -1136,7 +1136,12 @@ body {
      left-anchored caption next to the photo. */
   .character-title { grid-area: title; align-self: end; text-align: center; }
   .board           { grid-area: board; align-self: stretch; min-height: 0; max-width: 100%; }
-  .quad            { grid-area: board; align-self: end; max-width: 100%; }
+  /* Square the quad to the photo's height so the two halves of the stage
+     read as one cohesive widget. width = height keeps it a perfect square;
+     max-width: 100% protects narrow tablet columns where the square would
+     otherwise overflow; margin-left: auto anchors it to the right edge of
+     the board column when it's narrower than that column. */
+  .quad            { grid-area: board; align-self: end; height: var(--photo-max-h); width: var(--photo-max-h); max-width: 100%; margin-left: auto; }
   .grid            { height: 100%; }
   .grid .cell      { aspect-ratio: auto; }
   .status          { grid-area: status; }
