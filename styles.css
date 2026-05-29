@@ -128,7 +128,7 @@ body > * { position: relative; z-index: 1; }
   pointer-events: none;
   /* The closing act: a slow opacity fade so the wordmark dissolves gently
      into the live game rather than snapping away. */
-  transition: opacity 900ms var(--ease-out);
+  transition: opacity 720ms var(--ease-out);
 }
 
 .loader-intro--out {
@@ -141,18 +141,18 @@ body > * { position: relative; z-index: 1; }
   /* Start just off the left edge; the sweep carries it across and off the
      right. translateX in % is GPU-cheap and never reflows. */
   transform: translateX(-101%);
-  /* 2.5s pass (was 1s) — the extra ~1.5s lives in the mid-sweep hold below
-     so the colour lingers long enough to register before clearing. */
-  animation: strip-sweep 2500ms var(--ease-out) both;
+  /* 2s pass — the mid-sweep hold below holds the colour long enough to
+     register before clearing, kept snappy at 80% of the original timing. */
+  animation: strip-sweep 2000ms var(--ease-out) both;
   /* No-JS fallback palette — the whimsy six. */
   background: var(--c-pink);
 }
 .loader-strip:nth-child(1) { animation-delay: 0ms;   background: var(--c-yellow); }
-.loader-strip:nth-child(2) { animation-delay: 55ms;  background: var(--c-orange); }
-.loader-strip:nth-child(3) { animation-delay: 110ms; background: var(--c-pink); }
-.loader-strip:nth-child(4) { animation-delay: 165ms; background: var(--c-purple); }
-.loader-strip:nth-child(5) { animation-delay: 220ms; background: var(--c-blue); }
-.loader-strip:nth-child(6) { animation-delay: 275ms; background: var(--c-mint); }
+.loader-strip:nth-child(2) { animation-delay: 44ms;  background: var(--c-orange); }
+.loader-strip:nth-child(3) { animation-delay: 88ms;  background: var(--c-pink); }
+.loader-strip:nth-child(4) { animation-delay: 132ms; background: var(--c-purple); }
+.loader-strip:nth-child(5) { animation-delay: 176ms; background: var(--c-blue); }
+.loader-strip:nth-child(6) { animation-delay: 220ms; background: var(--c-mint); }
 
 /* In (0→20%), long hold fully covering the screen (20→80%), then out
    (80→100%). One keyframe does the whole left-to-right pass so each strip is
@@ -183,7 +183,7 @@ body > * { position: relative; z-index: 1; }
   color: #f6efdc;
   opacity: 0;
   transform: scale(0.82);
-  animation: loader-title-pop 460ms var(--ease-spring) 2775ms both;
+  animation: loader-title-pop 368ms var(--ease-spring) 2220ms both;
   pointer-events: none;
 }
 
