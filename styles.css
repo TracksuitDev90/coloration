@@ -141,9 +141,9 @@ body > * { position: relative; z-index: 1; }
   /* Start just off the left edge; the sweep carries it across and off the
      right. translateX in % is GPU-cheap and never reflows. */
   transform: translateX(-101%);
-  /* 2s pass — the mid-sweep hold below holds the colour long enough to
-     register before clearing, kept snappy at 80% of the original timing. */
-  animation: strip-sweep 2000ms var(--ease-out) both;
+  /* 1.4s pass — the mid-sweep hold below holds the colour briefly before it
+     clears; the wordmark drops in the instant the strips finish. */
+  animation: strip-sweep 1400ms var(--ease-out) both;
   /* No-JS fallback palette — the whimsy six. */
   background: var(--c-pink);
 }
@@ -183,7 +183,7 @@ body > * { position: relative; z-index: 1; }
   color: #f6efdc;
   opacity: 0;
   transform: scale(0.82);
-  animation: loader-title-pop 368ms var(--ease-spring) 2220ms both;
+  animation: loader-title-pop 368ms var(--ease-spring) 1620ms both;
   pointer-events: none;
 }
 

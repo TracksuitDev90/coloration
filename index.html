@@ -70,16 +70,15 @@
         var light = i % 2 === 0 ? 58 : 64;
         strips[i].style.background = 'hsl(' + hue + ' 72% ' + light + '%)';
       }
-      // Timeline (kept in sync with the CSS animation-delays, ~80% of the
-      // original for a snappier intro):
-      //   colour sweep clears ........ ~2220ms (2000ms strip + 220ms cascade)
-      //   "Coloration" wordmark pops .. 2220ms → ~2588ms
-      //   brief hold .................. → ~3020ms
-      //   fade into the game .......... 3020ms → ~3740ms
+      // Timeline (kept in sync with the CSS animation-delays):
+      //   colour sweep clears ........ ~1620ms (1400ms strip + 220ms cascade)
+      //   "Coloration" wordmark pops .. 1620ms → ~1988ms (the moment strips clear)
+      //   brief hold .................. → ~2420ms
+      //   fade into the game .......... 2420ms → ~3140ms
       // Start the fade once the wordmark has popped and held, then remove the
       // overlay from the DOM after the fade so it never traps pointer events.
-      var FADE_START = 3020;
-      var REMOVE_AT = 3760;
+      var FADE_START = 2420;
+      var REMOVE_AT = 3160;
       setTimeout(function () { el.classList.add('loader-intro--out'); }, FADE_START);
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, REMOVE_AT);
     })();
