@@ -290,6 +290,9 @@ ASSIGNMENTS = {
     "peter-potamus":            "IMG_0628.webp",
     "huckleberry-hound":        "IMG_0629.jpeg",
     "nidoking":                 "IMG_0632.webp",
+    # ---- Codename: Kids Next Door additions ----
+    "numbuh-3-sweater":         "IMG_0659.webp",
+    "numbuh-5-hat":             "IMG_0657.webp",
 }
 
 
