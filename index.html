@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0e1116" />
+  <meta name="theme-color" content="#202020" />
   <title>Coloration</title>
   <meta name="description" content="A daily color guessing game. Pick the right shade for an iconic character or item — fresh puzzles every day at UTC midnight." />
   <!-- TODO(release): replace TODO_PRODUCTION_URL with the canonical site URL. -->
@@ -33,6 +33,49 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <!-- Intro loader: six thick colour strips sweep horizontally across the
+       screen in a staggered cascade, then the overlay pops out to reveal the
+       game. Markup + colours are set inline (below) so the animation paints
+       on the very first frame, before the deferred game module runs. -->
+  <div class="loader-intro" id="loader-intro" aria-hidden="true">
+    <span class="loader-strip"></span>
+    <span class="loader-strip"></span>
+    <span class="loader-strip"></span>
+    <span class="loader-strip"></span>
+    <span class="loader-strip"></span>
+    <span class="loader-strip"></span>
+  </div>
+  <script>
+    (function () {
+      var el = document.getElementById('loader-intro');
+      if (!el) return;
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduce) {
+        // No sweep for reduced-motion users — drop straight into the game.
+        if (el.parentNode) el.parentNode.removeChild(el);
+        return;
+      }
+      // "Random colour scheme" done the well-behaved way: six hues spaced
+      // evenly around the wheel (so they're always distinct and balanced)
+      // with a random starting rotation each load. Gentle alternating
+      // lightness adds depth without muddying the vivid saturation.
+      var strips = el.querySelectorAll('.loader-strip');
+      var base = Math.floor(Math.random() * 360);
+      var step = 360 / strips.length;
+      for (var i = 0; i < strips.length; i++) {
+        var hue = Math.round((base + i * step) % 360);
+        var light = i % 2 === 0 ? 58 : 64;
+        strips[i].style.background = 'hsl(' + hue + ' 72% ' + light + '%)';
+      }
+      // Sweep = 1000ms anim + 5×55ms cascade delay = 1275ms for the last
+      // strip to clear. Pop the overlay out as that tail finishes, then
+      // remove it from the DOM so it never traps pointer events.
+      var TOTAL = 1275;
+      setTimeout(function () { el.classList.add('loader-intro--out'); }, TOTAL - 120);
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, TOTAL + 260);
+    })();
+  </script>
+
   <header class="topbar" role="banner">
     <h1 class="title">
       <svg class="title-blob" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
