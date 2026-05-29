@@ -258,8 +258,18 @@ const PALETTES = {
   'kids-next-door': [
     '#E2780B', // Numbuh 4 orange hoodie (mirrors items.json)
     '#CA0D41', // Numbuh 1 red shirt (mirrors items.json)
-    '#3FA34D', // Numbuh 3 Kuki green sweater
+    '#3D9127', // Numbuh 3 Kuki green sweater (mirrors items.json)
     '#2D6BAA', // Numbuh 2 Hoagie blue Hawaiian shirt
+  ],
+  // Numbuh 5's red cap. Numbuh 1's red is deliberately kept OUT of this
+  // palette — the two reds (#CD1241 vs #CA0D41) are near-identical and would
+  // make for an unfair near-duplicate swatch. Distractors are the other
+  // teammates' clearly-distinct hue families (orange, green, blue) instead.
+  'numbuh-5-hat': [
+    '#CD1241', // Numbuh 5 red hat (correct, mirrors items.json)
+    '#E2780B', // Numbuh 4 orange
+    '#3D9127', // Numbuh 3 green
+    '#2D6BAA', // Numbuh 2 blue
   ],
 };
 

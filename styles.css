@@ -1,7 +1,11 @@
 /* ---------- Tokens ---------- */
 :root {
   /* Surfaces */
-  --bg: #000;
+  /* Main page background. Darker shadows and the deepest framing surfaces
+     use --bg-deep (#000) so flat areas read as #202020 while wells and
+     photo frames stay true black. */
+  --bg: #202020;
+  --bg-deep: #000;
   --bg-elev: #141821;
   --bg-elev-2: #1a2030;
   /* Board surface sits behind the colour swatches. Kept distinct from
@@ -19,6 +23,12 @@
   --text: #ecf0f7;
   --muted: #8b95a7;
   --muted-soft: #5d6678;
+
+  /* Mode tabs (Items / Characters) — blue border + sliding fill with
+     near-white text that stays legible on both the active fill and the
+     inactive track. */
+  --tab-accent: #3171C6;
+  --tab-text: #F4F3F1;
 
   /* Accents */
   --accent: #4dd9c0;
@@ -96,6 +106,68 @@ body::after {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.7'/></svg>");
 }
 body > * { position: relative; z-index: 1; }
+
+/* ---------- Intro loader ---------- */
+/* Six thick horizontal strips sweep across the screen in a staggered cascade
+   over a solid page-coloured backdrop, then the whole overlay pops out to
+   reveal the game. The backdrop matches --bg so there's never a flash of
+   un-styled content behind the colour, and the pop-out reads as the game
+   "snapping" into place. JS (inline in index.html) assigns the random hues
+   and removes the element once the sweep finishes; the colours below are a
+   no-JS fallback. */
+.loader-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  /* Never block taps — the game isn't interactive until it's revealed
+     anyway, and this guarantees the overlay can't trap a stray touch. */
+  pointer-events: none;
+  transform-origin: center;
+  transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out);
+}
+
+/* The pop: a quick fade + slight scale-up as the sweep clears, so the game
+   appears to burst into view rather than simply uncovering. */
+.loader-intro--out {
+  opacity: 0;
+  transform: scale(1.06);
+}
+
+.loader-strip {
+  flex: 1 1 0;
+  width: 100%;
+  /* Start just off the left edge; the sweep carries it across and off the
+     right. translateX in % is GPU-cheap and never reflows. */
+  transform: translateX(-101%);
+  animation: strip-sweep 1000ms var(--ease-out) both;
+  /* No-JS fallback palette — the whimsy six. */
+  background: var(--c-pink);
+}
+.loader-strip:nth-child(1) { animation-delay: 0ms;   background: var(--c-yellow); }
+.loader-strip:nth-child(2) { animation-delay: 55ms;  background: var(--c-orange); }
+.loader-strip:nth-child(3) { animation-delay: 110ms; background: var(--c-pink); }
+.loader-strip:nth-child(4) { animation-delay: 165ms; background: var(--c-purple); }
+.loader-strip:nth-child(5) { animation-delay: 220ms; background: var(--c-blue); }
+.loader-strip:nth-child(6) { animation-delay: 275ms; background: var(--c-mint); }
+
+/* In (0→40%), brief hold (40→58%), then out (58→100%). One keyframe does the
+   whole left-to-right pass so each strip is a single continuous swipe. */
+@keyframes strip-sweep {
+  0%   { transform: translateX(-101%); }
+  40%  { transform: translateX(0); }
+  58%  { transform: translateX(0); }
+  100% { transform: translateX(101%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Belt-and-braces: the inline script already removes the overlay for
+     reduced-motion users, but hide it here too in case JS is disabled. */
+  .loader-intro { display: none; }
+}
 
 img {
   image-rendering: -webkit-optimize-contrast;
@@ -286,7 +358,7 @@ body {
   padding: 4px;
   margin: clamp(18px, 3vw, 28px) auto 0;
   background: var(--bg-elev);
-  border: 1px solid var(--border-strong);
+  border: 1.5px solid var(--tab-accent);
   border-radius: var(--radius-pill);
   box-shadow: var(--shadow-soft);
   align-self: center;
@@ -305,7 +377,7 @@ body {
   left: 4px;
   width: calc(50% - 4px);
   height: calc(100% - 8px);
-  background: var(--text);
+  background: var(--tab-accent);
   border-radius: var(--radius-pill);
   transform: translateX(0);
   transition: transform 320ms var(--ease-out);
@@ -322,7 +394,7 @@ body {
 .tab {
   appearance: none;
   background: transparent;
-  color: var(--text);
+  color: var(--tab-text);
   border: 0;
   border-radius: var(--radius-pill);
   padding: 8px 22px;
@@ -343,13 +415,14 @@ body {
   gap: 8px;
 }
 
-.tab:hover { color: var(--text); }
+.tab:hover { color: var(--tab-text); }
 
 .tab--active,
 .tab--active:hover,
 .tab--active:focus,
 .tab--active:focus-visible {
-  color: #0e1116;
+  /* Near-white text sits on the blue sliding fill behind the active tab. */
+  color: var(--tab-text);
   background: transparent;
   transform: none;
 }
@@ -419,8 +492,9 @@ body {
   /* Dark background instead of white. The rounded-corner clip on the
      <img> antialiases against this colour, and PNG/WebP source images
      with transparent corners reveal it directly — a white fill produced
-     a visible bright sliver in each inner corner. */
-  background: var(--bg);
+     a visible bright sliver in each inner corner. Kept true black against
+     the #202020 page so the frame reads as a crisp dark well. */
+  background: var(--bg-deep);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -1135,13 +1209,23 @@ body {
      it reads as the question to the column it sits above, not as a
      left-anchored caption next to the photo. */
   .character-title { grid-area: title; align-self: end; text-align: center; }
-  .board           { grid-area: board; align-self: stretch; min-height: 0; max-width: 100%; }
-  /* Square the quad to the photo's height so the two halves of the stage
-     read as one cohesive widget. width = height keeps it a perfect square;
-     max-width: 100% protects narrow tablet columns where the square would
-     otherwise overflow; margin-left: auto anchors it to the right edge of
-     the board column when it's narrower than that column. */
-  .quad            { grid-area: board; align-self: end; height: var(--photo-max-h); width: var(--photo-max-h); max-width: 100%; margin-left: auto; }
+  /* The Characters grid and the Items quad share one footprint so the two
+     tabs look identical: a square sized to the SMALLER of the photo-height
+     ceiling and the board column's own width (`min(--photo-max-h, 100%)`),
+     driven by aspect-ratio so it never overflows below the photo on a
+     narrow iPad-portrait column the way a fixed height would. Both bottom-
+     align with the photo and anchor to the right edge of the column, so the
+     stage reads as one cohesive widget whichever tab is active. */
+  .board,
+  .quad            {
+    grid-area: board;
+    align-self: end;
+    width: min(var(--photo-max-h), 100%);
+    height: auto;
+    aspect-ratio: 1 / 1;
+    margin-left: auto;
+    min-height: 0;
+  }
   .grid            { height: 100%; }
   .grid .cell      { aspect-ratio: auto; }
   .status          { grid-area: status; }

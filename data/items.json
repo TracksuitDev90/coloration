@@ -380,6 +380,26 @@
     "verified": true
   },
   {
+    "id": "numbuh-3-sweater",
+    "type": "item",
+    "name": "Numbuh 3's sweater",
+    "show": "Codename: Kids Next Door",
+    "color": { "hex": "#3D9127", "name": "Numbuh 3 Green" },
+    "image": "assets/photos/numbuh-3-sweater.png",
+    "quadPalette": "kids-next-door",
+    "verified": true
+  },
+  {
+    "id": "numbuh-5-hat",
+    "type": "item",
+    "name": "Numbuh 5's hat",
+    "show": "Codename: Kids Next Door",
+    "color": { "hex": "#CD1241", "name": "Numbuh 5 Red" },
+    "image": "assets/photos/numbuh-5-hat.png",
+    "quadPalette": "numbuh-5-hat",
+    "verified": true
+  },
+  {
     "id": "danny-phantom-eyes",
     "type": "item",
     "name": "Danny Phantom's ghost eyes",
