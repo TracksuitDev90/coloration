@@ -4,6 +4,10 @@
 
 import { hexToHsl } from './grid.js';
 
+// The daily run is endless: the player works through the whole roster rather
+// than a fixed three-per-day. This very large stride means a single UTC day's
+// `slotsPerDay` window effectively covers the entire pool, while still letting
+// the cross-day position rotation below advance by a stable amount each day.
 const CHARACTERS_PER_DAY = 999;
 
 // Day 0 of the rotation. Day index 0 picks the first slice of the pool;
@@ -175,20 +179,17 @@ export function shuffleCharacters(allCharacters) {
 export function positionForRound(dateKey, slotIndex, totalCells, slotsPerDay = CHARACTERS_PER_DAY) {
   if (!Number.isInteger(totalCells) || totalCells <= 0) return 0;
   const dayIndex = Math.max(0, daysBetween(ROTATION_EPOCH, dateKey));
-  if (totalCells === 12) {
-    // The 12-cell board (non-corner positions on the 4x4 grid) needs a
-    // different formula: CHARACTERS_PER_DAY (999) shares factor 3 with
-    // 12, so the standard (day*slotsPerDay + slot) * step path caps at
-    // a 4-position cycle per slot. Use coprime multipliers on each
-    // axis instead so each slot rotates through all 12 across days,
-    // and each day uses all 12 across slots.
-    const DAY_STEP = 5;
-    const SLOT_STEP = 7;
-    return ((dayIndex * DAY_STEP + slotIndex * SLOT_STEP) % 12 + 12) % 12;
-  }
   const linear = dayIndex * slotsPerDay + slotIndex;
   const step = totalCells === 16 ? 7 : totalCells === 4 ? 3 : 1;
   return ((linear * step) % totalCells + totalCells) % totalCells;
+}
+
+// Deterministic per-round board seed. Keyed off the UTC date, mode, and round
+// slot so the exact board (ramp layout + decoys) is identical for every player
+// and stable across refreshes — even if a localStorage write fails, reloading
+// regenerates the same seed rather than relocating the answer mid-puzzle.
+export function seedForRound(dateKey, mode, slotIndex) {
+  return hashString(`${dateKey}:${mode}:${slotIndex}`);
 }
 
 export function msUntilNextUtcDay(now = new Date()) {
