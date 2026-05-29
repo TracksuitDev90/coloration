@@ -1,19 +1,21 @@
-// Daily-mode game state. Plays through three characters locked to the UTC
-// date. State persists per UTC day in localStorage so refreshing mid-puzzle
-// resumes where the player left off; rolling over to a new UTC day starts
-// fresh. Each mode (items / grid) gets its own independent slot.
+// Daily-mode game state. An endless run keyed to the UTC date: the player
+// works through the roster a round at a time. State persists per UTC day in
+// localStorage so refreshing mid-puzzle resumes where the player left off;
+// rolling over to a new UTC day starts fresh. Each mode (items / grid) gets
+// its own independent slot.
 //
 // Two board kinds, mixed within the same daily run:
 //   grid — 4x4 shade picker, 3 guesses, axis hints after the 2nd miss
 //   quad — 4 distinct color swatches, 1 guess, no hints
 //
-// Skips: each mode allows up to 2 skips per UTC day. A skipped round is
-// neither won nor lost — neutral against streak — but still consumes the
-// slot (so the player can't skip-spam past the daily 3).
+// Skips: a skipped round is neither won nor lost — neutral against streak —
+// but still advances the run. The skip budget (MAX_SKIPS_PER_MODE) is set
+// effectively unlimited, and the UI collapses to a plain "Skip available"
+// label rather than a remaining-count once the budget is large.
 
 import { buildGrid } from './grid.js';
 import { buildQuad } from './quad.js';
-import { positionForRound } from './daily.js';
+import { positionForRound, seedForRound } from './daily.js';
 
 const STORAGE_KEYS = {
   bestStreak: 'wcat:v2:bestStreak',
@@ -23,6 +25,9 @@ const STORAGE_KEYS = {
 const GRID_MAX_GUESSES = 3;
 const QUAD_MAX_GUESSES = 1;
 const GRID_SIZE = 4;
+// Effectively unlimited — the endless daily run lets players skip freely. The
+// UI treats any value >= 10 as "unlimited" and shows "Skip available" instead
+// of a remaining count.
 export const MAX_SKIPS_PER_MODE = 999;
 
 // All 16 positions on the 4x4 grid, ordered row-major. The answer
@@ -52,7 +57,7 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
   const stored = sameDay ? all[mode] : null;
 
   let rounds, currentIndex, skipsUsed, streak;
-  if (stored && arrayEqual(stored.charIds, charIds)) {
+  if (stored && Array.isArray(stored.rounds) && arrayEqual(stored.charIds, charIds)) {
     rounds = dailyCharacters.map((c, i) => {
       const sr = stored.rounds[i] || {};
       return {
@@ -99,11 +104,13 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
   function loadCurrent() {
     const c = state.characters[state.currentIndex];
     const round = state.rounds[state.currentIndex];
-    // Per-round seed gets generated once and persisted, so the correct
-    // cell stays in the same place across page refreshes within the day.
+    // Per-round seed is derived deterministically from the date, mode, and
+    // round slot, so the board is identical for every player and stable across
+    // refreshes — no localStorage write is required to keep the answer put.
+    // Older saved games may carry a random seed; honour it so in-progress
+    // boards don't shift, but fresh rounds use the deterministic value.
     if (round.seed == null) {
-      round.seed = Math.floor(Math.random() * 0x100000000);
-      persist();
+      round.seed = seedForRound(state.date, mode, state.currentIndex);
     }
     if (c.type === 'item') {
       const correctIndex = positionForRound(state.date, state.currentIndex, 4);

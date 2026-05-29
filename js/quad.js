@@ -453,6 +453,20 @@ export function buildQuad(correctHex, { seed = 0, palette, correctIndex: forcedI
     chosen.push(cand);
   }
 
+  // Last-resort safety net: a very small custom palette (fewer than four
+  // distinct colors once the correct one is filtered out) could leave us short
+  // of three distractors, which would crash the box assembly below. Top up
+  // from the general cartoon palette so the board always has four entries.
+  if (chosen.length < BOX_COUNT) {
+    for (const hex of QUAD_PALETTE) {
+      if (chosen.length >= BOX_COUNT) break;
+      const up = hex.toUpperCase();
+      if (up === correctHex.toUpperCase()) continue;
+      if (chosen.some(c => c.hex === up)) continue;
+      chosen.push({ hex: up, hsl: hexToHsl(hex) });
+    }
+  }
+
   // Callers (the daily game) pass in a deterministic index that walks around
   // the four positions each round so the same item on a later day lands on
   // a different swatch. Fall back to a seeded pick when not provided.

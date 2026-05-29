@@ -549,6 +549,11 @@ function revealText(c) {
 function renderGridBoard(s) {
   els.board.hidden = false;
   els.quad.hidden = true;
+  // If keyboard focus was inside the board (e.g. after a wrong guess re-renders
+  // it), the cleared cells would drop focus to <body>. Remember so we can move
+  // focus into the rebuilt board — but only then, so we never steal focus on
+  // the initial page load.
+  const hadFocus = els.grid.contains(document.activeElement);
   els.grid.innerHTML = '';
   for (let r = 0; r < s.board.rows; r++) {
     for (let col = 0; col < s.board.cols; col++) {
@@ -570,6 +575,7 @@ function renderGridBoard(s) {
   }
   focusRow = 0;
   focusCol = 0;
+  if (hadFocus) cellButton(0, 0)?.focus();
 }
 
 function renderQuadBoard(s) {

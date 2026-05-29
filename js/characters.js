@@ -4,7 +4,7 @@
 // backgrounds, which is the wrong signal for "what is this color".
 //
 // Each entry has a `type`:
-//   "grid"  — full-character color, played on the 5x5 shade grid (3 guesses)
+//   "grid"  — full-character color, played on the 4x4 shade grid (3 guesses)
 //   "item"  — specific item from a scene, played on a 4-swatch quad (1 guess)
 
 export async function loadCharacters() {
@@ -35,7 +35,7 @@ function validate(list, label, allowEmpty = false) {
     if (!c.id || !c.name || !c.color?.hex) {
       throw new Error(`Invalid entry in ${label}: ${JSON.stringify(c)}`);
     }
-    if (!/^#?[0-9a-fA-F]{6}$/.test(c.color.hex)) {
+    if (!/^#[0-9a-fA-F]{6}$/.test(c.color.hex)) {
       throw new Error(`Bad hex for ${c.id}: ${c.color.hex}`);
     }
   }
