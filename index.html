@@ -34,9 +34,11 @@
 </head>
 <body>
   <!-- Intro loader: six thick colour strips sweep horizontally across the
-       screen in a staggered cascade, then the overlay pops out to reveal the
-       game. Markup + colours are set inline (below) so the animation paints
-       on the very first frame, before the deferred game module runs. -->
+       screen in a staggered cascade; once the colour pass finishes, the
+       "Coloration" wordmark pops into the centre and the whole overlay then
+       slowly fades to reveal the game. Markup + colours are set inline
+       (below) so the animation paints on the very first frame, before the
+       deferred game module runs. -->
   <div class="loader-intro" id="loader-intro" aria-hidden="true">
     <span class="loader-strip"></span>
     <span class="loader-strip"></span>
@@ -44,6 +46,7 @@
     <span class="loader-strip"></span>
     <span class="loader-strip"></span>
     <span class="loader-strip"></span>
+    <span class="loader-title">Coloration</span>
   </div>
   <script>
     (function () {
@@ -67,12 +70,17 @@
         var light = i % 2 === 0 ? 58 : 64;
         strips[i].style.background = 'hsl(' + hue + ' 72% ' + light + '%)';
       }
-      // Sweep = 1000ms anim + 5×55ms cascade delay = 1275ms for the last
-      // strip to clear. Pop the overlay out as that tail finishes, then
-      // remove it from the DOM so it never traps pointer events.
-      var TOTAL = 1275;
-      setTimeout(function () { el.classList.add('loader-intro--out'); }, TOTAL - 120);
-      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, TOTAL + 260);
+      // Timeline (kept in sync with the CSS animation-delays):
+      //   colour sweep clears ........ ~2775ms (2500ms strip + 275ms cascade)
+      //   "Coloration" wordmark pops .. 2775ms → ~3235ms
+      //   brief hold .................. → ~3775ms
+      //   slow fade into the game ..... 3775ms → ~4675ms
+      // Start the fade once the wordmark has popped and held, then remove the
+      // overlay from the DOM after the fade so it never traps pointer events.
+      var FADE_START = 3775;
+      var REMOVE_AT = 4700;
+      setTimeout(function () { el.classList.add('loader-intro--out'); }, FADE_START);
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, REMOVE_AT);
     })();
   </script>
 

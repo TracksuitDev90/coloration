@@ -109,12 +109,12 @@ body > * { position: relative; z-index: 1; }
 
 /* ---------- Intro loader ---------- */
 /* Six thick horizontal strips sweep across the screen in a staggered cascade
-   over a solid page-coloured backdrop, then the whole overlay pops out to
-   reveal the game. The backdrop matches --bg so there's never a flash of
-   un-styled content behind the colour, and the pop-out reads as the game
-   "snapping" into place. JS (inline in index.html) assigns the random hues
-   and removes the element once the sweep finishes; the colours below are a
-   no-JS fallback. */
+   over a solid page-coloured backdrop. Once the colour pass clears, the
+   "Coloration" wordmark pops into the centre, then the whole overlay slowly
+   fades to reveal the game. The backdrop matches --bg so there's never a
+   flash of un-styled content behind the colour. JS (inline in index.html)
+   assigns the random hues and removes the element after the fade; the
+   colours below are a no-JS fallback. */
 .loader-intro {
   position: fixed;
   inset: 0;
@@ -126,15 +126,13 @@ body > * { position: relative; z-index: 1; }
   /* Never block taps — the game isn't interactive until it's revealed
      anyway, and this guarantees the overlay can't trap a stray touch. */
   pointer-events: none;
-  transform-origin: center;
-  transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out);
+  /* The closing act: a slow opacity fade so the wordmark dissolves gently
+     into the live game rather than snapping away. */
+  transition: opacity 900ms var(--ease-out);
 }
 
-/* The pop: a quick fade + slight scale-up as the sweep clears, so the game
-   appears to burst into view rather than simply uncovering. */
 .loader-intro--out {
   opacity: 0;
-  transform: scale(1.06);
 }
 
 .loader-strip {
@@ -143,7 +141,9 @@ body > * { position: relative; z-index: 1; }
   /* Start just off the left edge; the sweep carries it across and off the
      right. translateX in % is GPU-cheap and never reflows. */
   transform: translateX(-101%);
-  animation: strip-sweep 1000ms var(--ease-out) both;
+  /* 2.5s pass (was 1s) — the extra ~1.5s lives in the mid-sweep hold below
+     so the colour lingers long enough to register before clearing. */
+  animation: strip-sweep 2500ms var(--ease-out) both;
   /* No-JS fallback palette — the whimsy six. */
   background: var(--c-pink);
 }
@@ -154,13 +154,42 @@ body > * { position: relative; z-index: 1; }
 .loader-strip:nth-child(5) { animation-delay: 220ms; background: var(--c-blue); }
 .loader-strip:nth-child(6) { animation-delay: 275ms; background: var(--c-mint); }
 
-/* In (0→40%), brief hold (40→58%), then out (58→100%). One keyframe does the
-   whole left-to-right pass so each strip is a single continuous swipe. */
+/* In (0→20%), long hold fully covering the screen (20→80%), then out
+   (80→100%). One keyframe does the whole left-to-right pass so each strip is
+   a single continuous swipe; the wide hold is where the added 1.5s lives. */
 @keyframes strip-sweep {
   0%   { transform: translateX(-101%); }
-  40%  { transform: translateX(0); }
-  58%  { transform: translateX(0); }
+  20%  { transform: translateX(0); }
+  80%  { transform: translateX(0); }
   100% { transform: translateX(101%); }
+}
+
+/* "Coloration" wordmark — same serif face as the top-bar title, scaled up,
+   in the same cream as the masthead. Pops into the centre of the cleared
+   overlay once the colour sweep has finished (delay ≈ when the last strip
+   exits), then rides the overlay's slow fade out into the game. */
+.loader-title {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: "Cormorant Garamond", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  font-weight: 700;
+  font-size: clamp(48px, 12vw, 120px);
+  letter-spacing: 0.005em;
+  line-height: 1;
+  color: #f6efdc;
+  opacity: 0;
+  transform: scale(0.82);
+  animation: loader-title-pop 460ms var(--ease-spring) 2775ms both;
+  pointer-events: none;
+}
+
+@keyframes loader-title-pop {
+  0%   { opacity: 0; transform: scale(0.82); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
