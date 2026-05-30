@@ -192,7 +192,7 @@ body > * { position: relative; z-index: 1; }
      backwards fill matches the 0% keyframe — no flash before it swipes in). */
   transform: translateX(-101%);
   will-change: transform, opacity;
-  animation: loader-title-sweep 1650ms 1100ms both;
+  animation: loader-title-sweep 1650ms 1650ms both;
   pointer-events: none;
 }
 
