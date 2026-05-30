@@ -72,19 +72,20 @@
         strips[i].style.background = 'hsl(' + hue + ' 72% ' + light + '%)';
       }
       // Timeline (kept in sync with the CSS animation-delays). The strips
-      // cascade and clear, then the wordmark swipes in from the left chasing
-      // them, holds, and pops into the game. The whole cascade leads in with a
-      // 150ms offset so the top strip's slide-in actually renders:
-      //   strips slide in one by one .. 150ms → ~1180ms (150ms apart)
-      //   strips slide out one by one . ~1230ms → ~2250ms (last clears)
-      //   wordmark swipes in .......... 1800ms → ~2345ms (chasing the strips)
-      //   logo holds alone ............ → ~3055ms
-      //   wind-up squash + POP ........ ~3055ms → 3450ms
+      // cascade and clear (now 25% quicker), then the wordmark swipes in from
+      // the left chasing them, lingers a touch longer, and pops big into the
+      // game. The whole cascade leads in with a 112ms offset so the top strip's
+      // slide-in actually renders:
+      //   strips slide in one by one .. 112ms → ~870ms (112ms apart)
+      //   strips slide out one by one . ~920ms → ~1684ms (last clears)
+      //   wordmark swipes in .......... 1234ms → ~1788ms (chasing the strips)
+      //   logo holds alone ............ → ~2556ms (lingers ~10% longer)
+      //   wind-up squash + big POP .... ~2556ms → ~3020ms
       // Drop the backdrop right as the pop bursts so the game is revealed
       // behind it, then remove the overlay once the pop has finished so it
       // never traps pointer events.
-      var REVEAL_AT = 3190;
-      var REMOVE_AT = 3510;
+      var REVEAL_AT = 2720;
+      var REMOVE_AT = 3060;
       setTimeout(function () { el.classList.add('loader-intro--out'); }, REVEAL_AT);
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, REMOVE_AT);
     })();
