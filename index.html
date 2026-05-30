@@ -33,11 +33,11 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Intro loader: six thick colour strips sweep horizontally across the
-       screen in a staggered cascade. The "Coloration" wordmark then swipes in
-       from the left, chasing the departing strips, settles in the centre,
-       holds a beat, and POPs into the game (a quick squash then a burst up +
-       fade as the backdrop drops away behind it). Markup + colours are set
+  <!-- Intro loader: the "Coloration" wordmark slides in from the left and
+       holds in the centre. Then six thick colour strips slide in from the left
+       one by one, top to bottom, wiping the wordmark away; once they fully
+       cover the screen they swipe off to the right one by one, each uncovering
+       a band of the live game (photo + grid) beneath. Markup + colours are set
        inline (below) so the animation paints on the very first frame, before
        the deferred game module runs. -->
   <div class="loader-intro" id="loader-intro" aria-hidden="true">
@@ -71,20 +71,22 @@
         var light = i % 2 === 0 ? 58 : 64;
         strips[i].style.background = 'hsl(' + hue + ' 72% ' + light + '%)';
       }
-      // Timeline (kept in sync with the CSS animation-delays). The strips
-      // cascade and clear, then the wordmark swipes in from the left chasing
-      // them, holds, and pops into the game:
-      //   strips slide in one by one .. 0 → ~1030ms (150ms apart)
-      //   strips slide out one by one . ~1080ms → ~2100ms (last clears)
-      //   wordmark swipes in .......... 1650ms → ~2195ms (chasing the strips)
-      //   logo holds alone ............ → ~2905ms
-      //   wind-up squash + POP ........ ~2905ms → 3300ms
-      // Drop the backdrop right as the pop bursts so the game is revealed
-      // behind it, then remove the overlay once the pop has finished so it
-      // never traps pointer events.
-      var REVEAL_AT = 3040;
-      var REMOVE_AT = 3360;
-      setTimeout(function () { el.classList.add('loader-intro--out'); }, REVEAL_AT);
+      // Timeline (kept in sync with the CSS animation-delays). Logo first,
+      // then the strips wipe it and reveal the game as they leave:
+      //   wordmark slides in .......... 120ms → ~740ms, then holds in centre
+      //   strips slide in one by one .. 1100ms → ~2170ms (150ms apart) wiping
+      //                                 the logo as the middle strips reach it
+      //   fully covered beat .......... ~2170ms → ~2380ms
+      //   strips slide out one by one . ~2380ms → ~3450ms, each revealing the
+      //                                 live game (photo + grid) beneath it
+      // While the screen is fully covered, flip the backdrop transparent and
+      // hide the logo (both invisible under the colour) so the departing strips
+      // uncover the game itself, not the page-colour or the wordmark. Then
+      // remove the overlay once the last strip has cleared so it never traps
+      // pointer events.
+      var CLEAR_AT = 2250;
+      var REMOVE_AT = 3500;
+      setTimeout(function () { el.classList.add('loader-intro--clear'); }, CLEAR_AT);
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, REMOVE_AT);
     })();
   </script>
