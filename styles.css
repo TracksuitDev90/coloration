@@ -108,14 +108,15 @@ body::after {
 body > * { position: relative; z-index: 1; }
 
 /* ---------- Intro loader ---------- */
-/* Six thick horizontal strips sweep across the screen in a staggered cascade
-   over a solid page-coloured backdrop. The "Coloration" wordmark then swipes
-   in from the left — chasing the departing strips but lagging slightly — and
-   decelerates into the centre, holds a beat, then POPs (a quick wind-up squash
-   then a burst up + fade) into the game as the backdrop drops away behind it.
-   The backdrop matches --bg so there's never a flash of un-styled content
-   behind the colour. JS (inline in index.html) assigns the random hues and
-   removes the element after the pop; the colours below are a no-JS fallback. */
+/* Six thick colour strips slide in from the left one by one, top to bottom,
+   over a solid page-coloured backdrop, fully covering the screen. The
+   "Coloration" wordmark sits centred and still beneath them, so as the strips
+   then slide off to the right one by one the middle strip uncovers the logo
+   already in place. The logo lingers, then POPs big into the game as the
+   backdrop drops away behind it. The backdrop matches --bg so there's never a
+   flash of un-styled content behind the colour. JS (inline in index.html)
+   assigns the random hues, drops the backdrop at the pop, and removes the
+   element afterwards; the colours below are a no-JS fallback. */
 .loader-intro {
   position: fixed;
   inset: 0;
@@ -141,6 +142,11 @@ body > * { position: relative; z-index: 1; }
 .loader-strip {
   flex: 1 1 0;
   width: 100%;
+  /* Sit above the wordmark (z-index 0) so the strips cover it on the way in,
+     and so sliding out to the right uncovers it — the middle strip reveals the
+     centred logo as it passes. */
+  position: relative;
+  z-index: 1;
   /* Start just off the left edge; the sweep carries it across and off the
      right. translateX in % is GPU-cheap and never reflows. */
   transform: translateX(-101%);
@@ -176,15 +182,15 @@ body > * { position: relative; z-index: 1; }
 }
 
 /* "Coloration" wordmark — same serif face as the top-bar title, scaled up,
-   in the same cream as the masthead. It's the last thing to move: it swipes in
-   from the left like the strips do, starting as they begin to clear so it reads
-   as chasing them (but lagging — it arrives just after the last strip is gone),
-   decelerates into the centre, holds a beat, then POPs into the game. It paints
-   on top of the strips (absolutely positioned, last in source) so it stays
-   visible the whole way across. */
+   in the same cream as the masthead. It does NOT slide in: it sits centred and
+   still beneath the strips (z-index 0), so the colour cascade reveals it — as
+   the middle strip slides off to the right it uncovers the logo already in
+   place. It's switched opaque (opacity 0→1) while still fully under cover so
+   the flip is never seen as a fade, then lingers and POPs big into the game. */
 .loader-title {
   position: absolute;
   inset: 0;
+  z-index: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -195,25 +201,29 @@ body > * { position: relative; z-index: 1; }
   letter-spacing: 0.005em;
   line-height: 1;
   color: #f6efdc;
-  /* Parked just off the left edge until its delay fires (kept here so the
-     backwards fill matches the 0% keyframe — no flash before it swipes in). */
-  transform: translateX(-101%);
+  opacity: 0;
   will-change: transform, opacity;
-  animation: loader-title-sweep 1786ms 1234ms both;
+  /* Flip opaque at 700ms — after the strips have fully covered the centre but
+     before the middle strip starts sliding off, so the switch happens under
+     cover; then pop later (forwards-only so it doesn't fill backwards and
+     reveal the logo early). */
+  animation:
+    loader-title-reveal 1ms linear 700ms forwards,
+    loader-title-pop 520ms 2450ms forwards;
   pointer-events: none;
 }
 
-/* Swipe in (0→31%) and decelerate into the centre, hold alone (31→74%, ~10%
-   longer than before so the wordmark lingers), a deep squash to wind up
-   (74→82%), then a big burst up and fade (82→100%) — the "pop", now larger and
-   springier for an AHA reveal — as the backdrop drops away behind it.
-   Per-keyframe easings: ease-out for the glide in, a spring for the pop. */
-@keyframes loader-title-sweep {
-  0%   { transform: translateX(-101%) scale(1);    opacity: 1; animation-timing-function: var(--ease-out); }
-  31%  { transform: translateX(0)     scale(1);    opacity: 1; animation-timing-function: linear; }
-  74%  { transform: translateX(0)     scale(1);    opacity: 1; animation-timing-function: cubic-bezier(0.5, 0, 0.7, 0.2); }
-  82%  { transform: translateX(0)     scale(0.78); opacity: 1; animation-timing-function: var(--ease-spring); }
-  100% { transform: translateX(0)     scale(2.6);  opacity: 0; }
+@keyframes loader-title-reveal {
+  to { opacity: 1; }
+}
+
+/* The pop, bigger and springier for an AHA reveal: a deep wind-up squash
+   (0→17%) then a large burst up and fade (17→100%) as the backdrop drops away
+   behind it. */
+@keyframes loader-title-pop {
+  0%   { transform: scale(1);    opacity: 1; animation-timing-function: cubic-bezier(0.5, 0, 0.7, 0.2); }
+  17%  { transform: scale(0.78); opacity: 1; animation-timing-function: var(--ease-spring); }
+  100% { transform: scale(2.6);  opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
