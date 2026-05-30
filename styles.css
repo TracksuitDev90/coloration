@@ -109,13 +109,13 @@ body > * { position: relative; z-index: 1; }
 
 /* ---------- Intro loader ---------- */
 /* Six thick horizontal strips sweep across the screen in a staggered cascade
-   over a solid page-coloured backdrop. The instant the middle strips wipe
-   away the "Coloration" wordmark pops into the centre — so the cascade fades
-   into the logo while the outer strips are still clearing — and after a short
-   solo hold the whole overlay slowly fades to reveal the game. The backdrop
-   matches --bg so there's never a flash of un-styled content behind the
-   colour. JS (inline in index.html) assigns the random hues and removes the
-   element after the fade; the colours below are a no-JS fallback. */
+   over a solid page-coloured backdrop. The "Coloration" wordmark sits behind
+   the strips, so the sliding colour uncovers it — the middle bands reveal it
+   while the outer strips are still clearing, sliding the logo in — and after
+   a ~1s solo hold the whole overlay slowly fades to reveal the game. The
+   backdrop matches --bg so there's never a flash of un-styled content behind
+   the colour. JS (inline in index.html) assigns the random hues and removes
+   the element after the fade; the colours below are a no-JS fallback. */
 .loader-intro {
   position: fixed;
   inset: 0;
@@ -139,6 +139,11 @@ body > * { position: relative; z-index: 1; }
 .loader-strip {
   flex: 1 1 0;
   width: 100%;
+  /* Sit above the wordmark (z-index 1) so each strip physically covers it;
+     as the strip slides off to the right it uncovers the logo behind, so the
+     departing colour "slides in" the wordmark. */
+  position: relative;
+  z-index: 2;
   /* Start just off the left edge; the sweep carries it across and off the
      right. translateX in % is GPU-cheap and never reflows. */
   transform: translateX(-101%);
@@ -167,14 +172,18 @@ body > * { position: relative; z-index: 1; }
 }
 
 /* "Coloration" wordmark — same serif face as the top-bar title, scaled up,
-   in the same cream as the masthead. Pops into the centre the moment the
-   middle strips wipe away (delay ≈ when the centre bands begin to exit, even
-   as the outer strips are still clearing), so the cascade dissolves straight
-   into the logo. It then holds alone before riding the overlay's fade out
+   in the same cream as the masthead. It sits *behind* the colour strips
+   (z-index 1) so the sweep covers it, then the sliding strips uncover it: the
+   middle bands reveal it first while the outer strips are still clearing, so
+   the departing colour slides the logo in. It's switched on (opacity 0→1)
+   while still hidden under the strips — once all six have entered and before
+   any exit — so the reveal is driven purely by the sweep, never by a fade of
+   its own. The logo then holds alone before riding the overlay's fade out
    into the game. */
 .loader-title {
   position: absolute;
   inset: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -186,14 +195,16 @@ body > * { position: relative; z-index: 1; }
   line-height: 1;
   color: #f6efdc;
   opacity: 0;
-  transform: scale(0.82);
-  animation: loader-title-pop 258ms var(--ease-spring) 1180ms both;
+  /* Turn opaque at 450ms — after all strips have swept in to fully cover the
+     centre (last strip covers ~434ms) but well before any begins to exit
+     (~1120ms), so this switch happens entirely under the colour and is never
+     seen as a fade. */
+  animation: loader-title-reveal 1ms linear 450ms forwards;
   pointer-events: none;
 }
 
-@keyframes loader-title-pop {
-  0%   { opacity: 0; transform: scale(0.82); }
-  100% { opacity: 1; transform: scale(1); }
+@keyframes loader-title-reveal {
+  to { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
