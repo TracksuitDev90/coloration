@@ -33,13 +33,13 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Intro loader: six thick colour strips sweep horizontally across the
-       screen in a staggered cascade. The "Coloration" wordmark then swipes in
-       from the left, chasing the departing strips, settles in the centre,
-       holds a beat, and POPs into the game (a quick squash then a burst up +
-       fade as the backdrop drops away behind it). Markup + colours are set
-       inline (below) so the animation paints on the very first frame, before
-       the deferred game module runs. -->
+  <!-- Intro loader: six thick colour strips slide in from the left one by one
+       and cover the screen, then slide off to the right one by one. The
+       "Coloration" wordmark sits centred beneath them, so the middle strip
+       uncovers it as it passes; the logo then lingers and POPs big into the
+       game (a deep squash then a large burst + fade as the backdrop drops away
+       behind it). Markup + colours are set inline (below) so the animation
+       paints on the very first frame, before the deferred game module runs. -->
   <div class="loader-intro" id="loader-intro" aria-hidden="true">
     <span class="loader-strip"></span>
     <span class="loader-strip"></span>
@@ -72,20 +72,21 @@
         strips[i].style.background = 'hsl(' + hue + ' 72% ' + light + '%)';
       }
       // Timeline (kept in sync with the CSS animation-delays). The strips
-      // cascade and clear (now 25% quicker), then the wordmark swipes in from
-      // the left chasing them, lingers a touch longer, and pops big into the
-      // game. The whole cascade leads in with a 112ms offset so the top strip's
-      // slide-in actually renders:
+      // cascade in and cover the screen, then slide out — the middle strip
+      // uncovering the centred wordmark that was sitting beneath them — and the
+      // logo lingers, then pops big into the game. The cascade leads in with a
+      // 112ms offset so the top strip's slide-in actually renders:
       //   strips slide in one by one .. 112ms → ~870ms (112ms apart)
-      //   strips slide out one by one . ~920ms → ~1684ms (last clears)
-      //   wordmark swipes in .......... 1234ms → ~1788ms (chasing the strips)
-      //   logo holds alone ............ → ~2556ms (lingers ~10% longer)
-      //   wind-up squash + big POP .... ~2556ms → ~3020ms
+      //   logo flipped opaque (covered) 700ms (unseen, under the strips)
+      //   strips slide out one by one . ~920ms → ~1684ms; middle strip reveals
+      //                                 the logo (~1146ms → ~1460ms)
+      //   logo lingers ................ → 2450ms
+      //   wind-up squash + big POP .... 2450ms → ~2970ms
       // Drop the backdrop right as the pop bursts so the game is revealed
       // behind it, then remove the overlay once the pop has finished so it
       // never traps pointer events.
-      var REVEAL_AT = 2720;
-      var REMOVE_AT = 3060;
+      var REVEAL_AT = 2540;
+      var REMOVE_AT = 3000;
       setTimeout(function () { el.classList.add('loader-intro--out'); }, REVEAL_AT);
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, REMOVE_AT);
     })();
