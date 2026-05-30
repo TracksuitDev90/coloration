@@ -108,16 +108,14 @@ body::after {
 body > * { position: relative; z-index: 1; }
 
 /* ---------- Intro loader ---------- */
-/* The "Coloration" wordmark first slides in from the left and parks in the
-   centre over a solid page-coloured backdrop. After a beat, six thick colour
-   strips slide in from the left one by one, top to bottom, wiping the wordmark
-   away as the middle strips reach it. Once the strips fully cover the screen
-   the backdrop is switched to transparent (invisible under the colour) and the
-   wordmark is hidden, so when the strips then swipe off to the right one by one
-   they reveal the live game (photo + grid) progressively beneath — no separate
-   fade-in needed. JS (inline in index.html) assigns the random hues, flips the
-   backdrop transparent under cover, and removes the element after the strips
-   clear; the colours below are a no-JS fallback. */
+/* Six thick horizontal strips sweep across the screen in a staggered cascade
+   over a solid page-coloured backdrop. The "Coloration" wordmark then swipes
+   in from the left — chasing the departing strips but lagging slightly — and
+   decelerates into the centre, holds a beat, then POPs (a quick wind-up squash
+   then a burst up + fade) into the game as the backdrop drops away behind it.
+   The backdrop matches --bg so there's never a flash of un-styled content
+   behind the colour. JS (inline in index.html) assigns the random hues and
+   removes the element after the pop; the colours below are a no-JS fallback. */
 .loader-intro {
   position: fixed;
   inset: 0;
@@ -129,50 +127,42 @@ body > * { position: relative; z-index: 1; }
   /* Never block taps — the game isn't interactive until it's revealed
      anyway, and this guarantees the overlay can't trap a stray touch. */
   pointer-events: none;
+  /* The closing act: only the backdrop fades (not the whole overlay), so the
+     game is revealed behind while the wordmark, a child on top, keeps doing
+     its own pop. Quick, so it reads as a snap into the game rather than a
+     slow dissolve. */
+  transition: background-color 260ms var(--ease-out);
 }
 
-/* Closeout: once the strips fully cover the screen, JS adds this class to
-   start the exit. The backdrop drops to transparent and the wordmark is
-   hidden — both invisible under the cover — so as each strip then swipes off
-   to the right it reveals the live game (photo + grid) directly beneath,
-   progressively, rather than the page-colour or the logo. The strip exit
-   itself is driven by the per-strip rules below. */
-.loader-intro--clear {
+.loader-intro--out {
   background-color: transparent;
-}
-.loader-intro--clear .loader-title {
-  display: none;
 }
 
 .loader-strip {
   flex: 1 1 0;
   width: 100%;
-  /* Sit above the wordmark (z-index 0) so a strip sliding in physically wipes
-     it away, and so the screen is fully covered before any strip exits. */
-  position: relative;
-  z-index: 1;
   /* Start just off the left edge; the sweep carries it across and off the
      right. translateX in % is GPU-cheap and never reflows. */
   transform: translateX(-101%);
-  /* 1.6s pass. Sized (with the 150ms stagger and 1100ms base delay below) so
-     the last strip finishes sliding in (~2170ms) just before the first starts
-     sliding out (~2380ms) — all in one by one, a fully-covered beat (~210ms),
-     then all out one by one. The 20→80% hold in the keyframe keeps the colour
-     on screen and gives JS that window to flip the backdrop transparent while
-     it's all covered. */
-  animation: strip-sweep 1600ms var(--ease-out) both;
+  /* 1.35s pass — sized so the last strip finishes sliding in (~1020ms) just
+     before the first starts sliding out (~1080ms), i.e. all in, brief hold,
+     then all out. The mid-sweep hold below keeps the colour on screen long
+     enough to register. */
+  animation: strip-sweep 1350ms var(--ease-out) both;
   /* No-JS fallback palette — the whimsy six. */
   background: var(--c-pink);
 }
-/* The strips wait for the wordmark to slide in and hold (1100ms base), then
-   come 150ms apart so each visibly slides in on its own, one by one, top to
-   bottom — and they slide out in the same order. */
-.loader-strip:nth-child(1) { animation-delay: 1100ms; background: var(--c-yellow); }
-.loader-strip:nth-child(2) { animation-delay: 1250ms; background: var(--c-orange); }
-.loader-strip:nth-child(3) { animation-delay: 1400ms; background: var(--c-pink); }
-.loader-strip:nth-child(4) { animation-delay: 1550ms; background: var(--c-purple); }
-.loader-strip:nth-child(5) { animation-delay: 1700ms; background: var(--c-blue); }
-.loader-strip:nth-child(6) { animation-delay: 1850ms; background: var(--c-mint); }
+/* 150ms apart so each strip visibly slides in on its own, one by one, top to
+   bottom, before the next follows — and they slide out in the same order. The
+   whole cascade leads in with a 150ms offset so the first strip's slide-in
+   actually renders (a 0ms start lands on the first frame, which load jank
+   often drops, making the top strip look like it was already parked). */
+.loader-strip:nth-child(1) { animation-delay: 150ms; background: var(--c-yellow); }
+.loader-strip:nth-child(2) { animation-delay: 300ms; background: var(--c-orange); }
+.loader-strip:nth-child(3) { animation-delay: 450ms; background: var(--c-pink); }
+.loader-strip:nth-child(4) { animation-delay: 600ms; background: var(--c-purple); }
+.loader-strip:nth-child(5) { animation-delay: 750ms; background: var(--c-blue); }
+.loader-strip:nth-child(6) { animation-delay: 900ms; background: var(--c-mint); }
 
 /* In (0→20%), long hold fully covering the screen (20→80%), then out
    (80→100%). One keyframe does the whole left-to-right pass so each strip is
@@ -186,16 +176,15 @@ body > * { position: relative; z-index: 1; }
 }
 
 /* "Coloration" wordmark — same serif face as the top-bar title, scaled up,
-   in the same cream as the masthead. It opens the show: it slides in from the
-   left and decelerates into the centre, then simply holds there. It sits
-   beneath the strips (z-index 0), so when the colour cascade slides in the
-   strip that reaches its row physically wipes it away — no exit animation of
-   its own. The .loader-intro--clear closeout hides it outright once the strips
-   fully cover, so it never peeks back through as they leave. */
+   in the same cream as the masthead. It's the last thing to move: it swipes in
+   from the left like the strips do, starting as they begin to clear so it reads
+   as chasing them (but lagging — it arrives just after the last strip is gone),
+   decelerates into the centre, holds a beat, then POPs into the game. It paints
+   on top of the strips (absolutely positioned, last in source) so it stays
+   visible the whole way across. */
 .loader-title {
   position: absolute;
   inset: 0;
-  z-index: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -206,20 +195,24 @@ body > * { position: relative; z-index: 1; }
   letter-spacing: 0.005em;
   line-height: 1;
   color: #f6efdc;
-  /* Parked just off the left edge until its animation fires (kept here so the
-     backwards fill matches the 0% keyframe — no flash before it slides in). */
+  /* Parked just off the left edge until its delay fires (kept here so the
+     backwards fill matches the 0% keyframe — no flash before it swipes in). */
   transform: translateX(-101%);
-  will-change: transform;
-  /* Slides in straight away and holds (forwards fill keeps it centred while it
-     waits to be wiped by the strips). */
-  animation: loader-title-in 620ms var(--ease-out) 120ms both;
+  will-change: transform, opacity;
+  animation: loader-title-sweep 1650ms 1800ms both;
   pointer-events: none;
 }
 
-/* Slide in from the left edge to centre, then hold (the strips do the rest). */
-@keyframes loader-title-in {
-  0%   { transform: translateX(-101%); }
-  100% { transform: translateX(0); }
+/* Swipe in (0→33%) and decelerate into the centre, hold alone (33→76%), a
+   quick squash to wind up (76→84%), then burst up and fade (84→100%) — the
+   "pop" — as the backdrop drops away to reveal the game behind. Per-keyframe
+   easings: ease-out for the glide in, a spring for the pop. */
+@keyframes loader-title-sweep {
+  0%   { transform: translateX(-101%) scale(1);   opacity: 1; animation-timing-function: var(--ease-out); }
+  33%  { transform: translateX(0)     scale(1);   opacity: 1; animation-timing-function: linear; }
+  76%  { transform: translateX(0)     scale(1);   opacity: 1; animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0.35); }
+  84%  { transform: translateX(0)     scale(0.86); opacity: 1; animation-timing-function: var(--ease-spring); }
+  100% { transform: translateX(0)     scale(1.7);  opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
