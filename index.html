@@ -34,13 +34,12 @@
 </head>
 <body>
   <!-- Intro loader: six thick colour strips sweep horizontally across the
-       screen in a staggered cascade. The "Coloration" wordmark sits behind
-       the strips, so the sliding colour uncovers it — the middle bands reveal
-       it first while the outer strips are still clearing, sliding the logo in.
-       The logo then holds alone for about a second before the whole overlay
-       slowly fades to reveal the game. Markup + colours are set inline (below)
-       so the animation paints on the very first frame, before the deferred
-       game module runs. -->
+       screen in a staggered cascade. The "Coloration" wordmark then swipes in
+       from the left, chasing the departing strips, settles in the centre,
+       holds a beat, and POPs into the game (a quick squash then a burst up +
+       fade as the backdrop drops away behind it). Markup + colours are set
+       inline (below) so the animation paints on the very first frame, before
+       the deferred game module runs. -->
   <div class="loader-intro" id="loader-intro" aria-hidden="true">
     <span class="loader-strip"></span>
     <span class="loader-strip"></span>
@@ -72,20 +71,19 @@
         var light = i % 2 === 0 ? 58 : 64;
         strips[i].style.background = 'hsl(' + hue + ' 72% ' + light + '%)';
       }
-      // Timeline (kept in sync with the CSS animation-delays). The wordmark
-      // lives behind the strips and is uncovered by the sweep itself — the
-      // middle bands slide off and reveal it while the outer strips are still
-      // clearing — then it holds alone for about a second before fading away:
-      //   middle strips uncover the logo .. ~1180ms → ~1490ms (centre bands exit)
-      //   last strip clears ............... ~1554ms (1400ms strip + 154ms cascade)
-      //   logo held alone ................. → ~2550ms (~1s solo hold)
-      //   fade into the game .............. 2550ms → ~3054ms
-      // Start the fade once the logo has been revealed and held alone, then
-      // remove the overlay from the DOM after the fade so it never traps
-      // pointer events.
-      var FADE_START = 2550;
-      var REMOVE_AT = 3080;
-      setTimeout(function () { el.classList.add('loader-intro--out'); }, FADE_START);
+      // Timeline (kept in sync with the CSS animation-delays). The strips
+      // cascade and clear, then the wordmark swipes in from the left chasing
+      // them, holds, and pops into the game:
+      //   last strip clears ........... ~1554ms (1400ms strip + 154ms cascade)
+      //   wordmark swipes in .......... 1100ms → ~1645ms (chasing the strips)
+      //   logo holds alone ............ → ~2354ms
+      //   wind-up squash + POP ........ ~2354ms → 2750ms
+      // Drop the backdrop right as the pop bursts so the game is revealed
+      // behind it, then remove the overlay once the pop has finished so it
+      // never traps pointer events.
+      var REVEAL_AT = 2480;
+      var REMOVE_AT = 2800;
+      setTimeout(function () { el.classList.add('loader-intro--out'); }, REVEAL_AT);
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, REMOVE_AT);
     })();
   </script>

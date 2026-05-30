@@ -109,13 +109,13 @@ body > * { position: relative; z-index: 1; }
 
 /* ---------- Intro loader ---------- */
 /* Six thick horizontal strips sweep across the screen in a staggered cascade
-   over a solid page-coloured backdrop. The "Coloration" wordmark sits behind
-   the strips, so the sliding colour uncovers it — the middle bands reveal it
-   while the outer strips are still clearing, sliding the logo in — and after
-   a ~1s solo hold the whole overlay slowly fades to reveal the game. The
-   backdrop matches --bg so there's never a flash of un-styled content behind
-   the colour. JS (inline in index.html) assigns the random hues and removes
-   the element after the fade; the colours below are a no-JS fallback. */
+   over a solid page-coloured backdrop. The "Coloration" wordmark then swipes
+   in from the left — chasing the departing strips but lagging slightly — and
+   decelerates into the centre, holds a beat, then POPs (a quick wind-up squash
+   then a burst up + fade) into the game as the backdrop drops away behind it.
+   The backdrop matches --bg so there's never a flash of un-styled content
+   behind the colour. JS (inline in index.html) assigns the random hues and
+   removes the element after the pop; the colours below are a no-JS fallback. */
 .loader-intro {
   position: fixed;
   inset: 0;
@@ -127,23 +127,20 @@ body > * { position: relative; z-index: 1; }
   /* Never block taps — the game isn't interactive until it's revealed
      anyway, and this guarantees the overlay can't trap a stray touch. */
   pointer-events: none;
-  /* The closing act: a slow opacity fade so the wordmark dissolves gently
-     into the live game rather than snapping away. */
-  transition: opacity 504ms var(--ease-out);
+  /* The closing act: only the backdrop fades (not the whole overlay), so the
+     game is revealed behind while the wordmark, a child on top, keeps doing
+     its own pop. Quick, so it reads as a snap into the game rather than a
+     slow dissolve. */
+  transition: background-color 260ms var(--ease-out);
 }
 
 .loader-intro--out {
-  opacity: 0;
+  background-color: transparent;
 }
 
 .loader-strip {
   flex: 1 1 0;
   width: 100%;
-  /* Sit above the wordmark (z-index 1) so each strip physically covers it;
-     as the strip slides off to the right it uncovers the logo behind, so the
-     departing colour "slides in" the wordmark. */
-  position: relative;
-  z-index: 2;
   /* Start just off the left edge; the sweep carries it across and off the
      right. translateX in % is GPU-cheap and never reflows. */
   transform: translateX(-101%);
@@ -172,18 +169,15 @@ body > * { position: relative; z-index: 1; }
 }
 
 /* "Coloration" wordmark — same serif face as the top-bar title, scaled up,
-   in the same cream as the masthead. It sits *behind* the colour strips
-   (z-index 1) so the sweep covers it, then the sliding strips uncover it: the
-   middle bands reveal it first while the outer strips are still clearing, so
-   the departing colour slides the logo in. It's switched on (opacity 0→1)
-   while still hidden under the strips — once all six have entered and before
-   any exit — so the reveal is driven purely by the sweep, never by a fade of
-   its own. The logo then holds alone before riding the overlay's fade out
-   into the game. */
+   in the same cream as the masthead. It's the last thing to move: it swipes in
+   from the left like the strips do, starting as they begin to clear so it reads
+   as chasing them (but lagging — it arrives just after the last strip is gone),
+   decelerates into the centre, holds a beat, then POPs into the game. It paints
+   on top of the strips (absolutely positioned, last in source) so it stays
+   visible the whole way across. */
 .loader-title {
   position: absolute;
   inset: 0;
-  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -194,17 +188,24 @@ body > * { position: relative; z-index: 1; }
   letter-spacing: 0.005em;
   line-height: 1;
   color: #f6efdc;
-  opacity: 0;
-  /* Turn opaque at 450ms — after all strips have swept in to fully cover the
-     centre (last strip covers ~434ms) but well before any begins to exit
-     (~1120ms), so this switch happens entirely under the colour and is never
-     seen as a fade. */
-  animation: loader-title-reveal 1ms linear 450ms forwards;
+  /* Parked just off the left edge until its delay fires (kept here so the
+     backwards fill matches the 0% keyframe — no flash before it swipes in). */
+  transform: translateX(-101%);
+  will-change: transform, opacity;
+  animation: loader-title-sweep 1650ms 1100ms both;
   pointer-events: none;
 }
 
-@keyframes loader-title-reveal {
-  to { opacity: 1; }
+/* Swipe in (0→33%) and decelerate into the centre, hold alone (33→76%), a
+   quick squash to wind up (76→84%), then burst up and fade (84→100%) — the
+   "pop" — as the backdrop drops away to reveal the game behind. Per-keyframe
+   easings: ease-out for the glide in, a spring for the pop. */
+@keyframes loader-title-sweep {
+  0%   { transform: translateX(-101%) scale(1);   opacity: 1; animation-timing-function: var(--ease-out); }
+  33%  { transform: translateX(0)     scale(1);   opacity: 1; animation-timing-function: linear; }
+  76%  { transform: translateX(0)     scale(1);   opacity: 1; animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0.35); }
+  84%  { transform: translateX(0)     scale(0.86); opacity: 1; animation-timing-function: var(--ease-spring); }
+  100% { transform: translateX(0)     scale(1.7);  opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
