@@ -4,11 +4,10 @@
 
 import { hexToHsl } from './grid.js';
 
-// The daily run is endless: the player works through the whole roster rather
-// than a fixed three-per-day. This very large stride means a single UTC day's
-// `slotsPerDay` window effectively covers the entire pool, while still letting
-// the cross-day position rotation below advance by a stable amount each day.
-const CHARACTERS_PER_DAY = 999;
+// Three fresh entries per UTC day. This is both the default daily slice size
+// and the `slotsPerDay` stride the cross-day position rotation advances by, so
+// each day surfaces a new trio and the answer position keeps rotating cleanly.
+const CHARACTERS_PER_DAY = 3;
 
 // Day 0 of the rotation. Day index 0 picks the first slice of the pool;
 // each subsequent day advances by CHARACTERS_PER_DAY so every entry surfaces

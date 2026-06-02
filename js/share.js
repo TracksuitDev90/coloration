@@ -22,7 +22,29 @@ const CARD_STROKE = '#262d38';
 const TEXT_PRIMARY = '#e6ebf2';
 const TEXT_SECONDARY = '#a4afc1';
 const TEXT_MUTED = '#7b8597';
-const ACCENT = '#4dd9c0';
+
+// Each rendered share card gets a randomly-hued main colour theme, so two
+// people sharing the same day's result don't post the exact same image. Only
+// the accent/glow/background tint changes — the data (portraits, outcomes,
+// score) is identical for the day. The dark base keeps every hue legible.
+function makeTheme(hue) {
+  return {
+    accent: `hsl(${hue}, 62%, 62%)`,
+    glow: (a) => `hsla(${hue}, 72%, 56%, ${a})`,
+    pillFillTop: `hsla(${hue}, 62%, 58%, 0.24)`,
+    pillFillBottom: `hsla(${hue}, 62%, 58%, 0.10)`,
+    pillStroke: `hsla(${hue}, 62%, 62%, 0.55)`,
+    bgTop: `hsl(${hue}, 26%, 15%)`,
+    bgMid: `hsl(${hue}, 22%, 9%)`,
+    bgBottom: `hsl(${hue}, 28%, 5%)`,
+  };
+}
+
+// ~168° reproduces the original teal accent; used as a stable fallback.
+let theme = makeTheme(168);
+function pickRandomTheme() {
+  theme = makeTheme(Math.floor(Math.random() * 360));
+}
 
 const PIXEL_RATIO = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
 
@@ -32,6 +54,8 @@ const PIXEL_RATIO = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
 const COMPACT_GRID_THRESHOLD = 8;
 
 export async function renderShareCard(snapshot) {
+  // Fresh random main colour theme per render so shared cards vary.
+  pickRandomTheme();
   // Preload all portraits up-front so the draw path can pull them
   // synchronously from cache. The in-game prefetch usually has them already.
   await preloadAllPortraits(snapshot.characters || []);
@@ -78,6 +102,8 @@ export async function renderShareCard(snapshot) {
 // columns (Items on the left, Characters on the right) so the player can
 // brag about both runs in one image without the card changing size.
 export async function renderCombinedShareCard({ items, grid }) {
+  // Fresh random main colour theme per render so shared cards vary.
+  pickRandomTheme();
   // Preload portraits from both runs up-front; the in-game cache usually
   // already has them but the share view is sometimes hit from a cold start.
   const allChars = [...(items?.characters || []), ...(grid?.characters || [])];
@@ -130,7 +156,7 @@ function drawCombinedHeader(ctx, { items, grid }) {
   ctx.textBaseline = 'top';
 
   const dateLabel = items?.date || grid?.date || '';
-  ctx.fillStyle = ACCENT;
+  ctx.fillStyle = theme.accent;
   ctx.font = '800 22px "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillText('DAILY · ' + dateLabel, PADDING, 64);
 
@@ -225,10 +251,10 @@ function drawSmallScorePill(ctx, text, right, top) {
 
   ctx.save();
   const grd = ctx.createLinearGradient(x, y, x, y + h);
-  grd.addColorStop(0, 'rgba(77,217,192,0.22)');
-  grd.addColorStop(1, 'rgba(77,217,192,0.10)');
+  grd.addColorStop(0, theme.pillFillTop);
+  grd.addColorStop(1, theme.pillFillBottom);
   ctx.fillStyle = grd;
-  ctx.strokeStyle = 'rgba(77,217,192,0.55)';
+  ctx.strokeStyle = theme.pillStroke;
   ctx.lineWidth = 1.25;
   roundRect(ctx, x, y, w, h, h / 2);
   ctx.fill();
@@ -345,18 +371,18 @@ function drawCompactGrid(ctx, snapshot, played, left, top, right, bottom) {
 }
 
 function drawBackground(ctx) {
-  // Vertical gradient base.
+  // Vertical gradient base — tinted toward the card's random main theme hue.
   const grd = ctx.createLinearGradient(0, 0, 0, H);
-  grd.addColorStop(0, '#1f2735');
-  grd.addColorStop(0.55, '#141821');
-  grd.addColorStop(1, '#0b0e13');
+  grd.addColorStop(0, theme.bgTop);
+  grd.addColorStop(0.55, theme.bgMid);
+  grd.addColorStop(1, theme.bgBottom);
   ctx.fillStyle = grd;
   ctx.fillRect(0, 0, W, H);
 
   // Soft radial glow top-left to give the card a focal point.
   const glow = ctx.createRadialGradient(220, 160, 20, 220, 160, 700);
-  glow.addColorStop(0, 'rgba(77, 217, 192, 0.16)');
-  glow.addColorStop(1, 'rgba(77, 217, 192, 0)');
+  glow.addColorStop(0, theme.glow(0.16));
+  glow.addColorStop(1, theme.glow(0));
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, W, H);
 
@@ -369,7 +395,7 @@ function drawHeader(ctx, snapshot) {
   ctx.textBaseline = 'top';
 
   // Brand kicker — small label above the title.
-  ctx.fillStyle = ACCENT;
+  ctx.fillStyle = theme.accent;
   ctx.font = '800 22px "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillText('DAILY · ' + snapshot.date, PADDING, 64);
 
@@ -404,10 +430,10 @@ function drawScorePill(ctx, text, right, top) {
   ctx.save();
   // Subtle gradient fill on the pill.
   const grd = ctx.createLinearGradient(x, y, x, y + h);
-  grd.addColorStop(0, 'rgba(77,217,192,0.22)');
-  grd.addColorStop(1, 'rgba(77,217,192,0.10)');
+  grd.addColorStop(0, theme.pillFillTop);
+  grd.addColorStop(1, theme.pillFillBottom);
   ctx.fillStyle = grd;
-  ctx.strokeStyle = 'rgba(77,217,192,0.55)';
+  ctx.strokeStyle = theme.pillStroke;
   ctx.lineWidth = 1.5;
   roundRect(ctx, x, y, w, h, h / 2);
   ctx.fill();

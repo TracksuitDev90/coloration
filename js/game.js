@@ -9,9 +9,8 @@
 //   quad — 4 distinct color swatches, 1 guess, no hints
 //
 // Skips: a skipped round is neither won nor lost — neutral against streak —
-// but still advances the run. The skip budget (MAX_SKIPS_PER_MODE) is set
-// effectively unlimited, and the UI collapses to a plain "Skip available"
-// label rather than a remaining-count once the budget is large.
+// but still advances the run. The skip budget (MAX_SKIPS_PER_MODE) is two per
+// mode per day, and the UI shows the remaining count.
 
 import { buildGrid } from './grid.js';
 import { buildQuad } from './quad.js';
@@ -25,10 +24,9 @@ const STORAGE_KEYS = {
 const GRID_MAX_GUESSES = 3;
 const QUAD_MAX_GUESSES = 1;
 const GRID_SIZE = 4;
-// Effectively unlimited — the endless daily run lets players skip freely. The
-// UI treats any value >= 10 as "unlimited" and shows "Skip available" instead
-// of a remaining count.
-export const MAX_SKIPS_PER_MODE = 999;
+// Two skips per mode per day. The UI shows the remaining count (values >= 10
+// collapse to a plain "Skip available" label, but two stays an explicit count).
+export const MAX_SKIPS_PER_MODE = 2;
 
 // All 16 positions on the 4x4 grid, ordered row-major. The answer
 // rotates through these across rounds and days, and the grid ramp

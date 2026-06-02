@@ -495,6 +495,51 @@ body {
   outline-offset: 3px;
 }
 
+/* "Coming soon" stub — the Characters tab is visible but parked. Dimmed,
+   not-allowed cursor, and a small floating label on hover/focus so a tap or
+   hover reads as "intentionally not available yet". */
+.tab--coming-soon {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.tab--coming-soon:hover { color: var(--tab-text); }
+.tab--coming-soon::after {
+  content: "Soon";
+  position: absolute;
+  top: -10px;
+  right: -6px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: var(--radius-pill);
+  background: var(--tab-accent);
+  color: var(--tab-text);
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
+  pointer-events: none;
+}
+.tab--coming-soon:hover::after,
+.tab--coming-soon:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Quick shake when the parked tab is tapped, reinforcing the toast. */
+.tab--nudge { animation: tab-nudge 420ms var(--ease-out); }
+@keyframes tab-nudge {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab--nudge { animation: none; }
+}
+
 /* ---------- Stage ---------- */
 .stage {
   flex: 1;
@@ -998,22 +1043,6 @@ body {
   gap: 8px;
   position: relative;
   margin-top: clamp(20px, 4vw, 36px);
-}
-
-.btn--hard-reset {
-  font-size: 11px;
-  padding: 6px 12px;
-  min-height: 0;
-  opacity: 0.6;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.btn--hard-reset:hover { opacity: 1; }
-.btn--hard-reset-armed {
-  opacity: 1;
-  color: #2a1700;
-  background: #ffb24d;
-  border-color: transparent;
 }
 
 /* A thin rainbow accent above the footer ties the chrome together. */
