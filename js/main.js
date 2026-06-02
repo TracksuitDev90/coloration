@@ -22,7 +22,13 @@ initTitleBlob();
 
 const COL_LABELS = ['A', 'B', 'C', 'D'];
 const GRID_SIZE = 4;
-const ROUNDS_PER_DAY = 999;
+const ROUNDS_PER_DAY = 3;
+
+// Characters mode is parked as "coming soon" while it's being reworked. The
+// tab still renders (so the nav reads "Items / Characters") but selecting it
+// surfaces a toast instead of switching — the live experience is items-only.
+// Flip back to true to restore the full two-mode game.
+const CHARACTERS_ENABLED = false;
 
 // Per-mode localStorage keys. Seen records the IDs the player has already
 // encountered (so each day surfaces fresh entries until the roster wraps).
@@ -167,11 +173,13 @@ async function init() {
     const itemPool = chars.filter(c => c.type === 'item');
     const gridPool = chars.filter(c => c.type !== 'item');
     const itemDaily = selectDailyFresh(itemPool, dateKey, 'items');
-    const gridDaily = selectDailyFresh(gridPool, dateKey, 'grid');
+    // While Characters is parked, skip its daily selection entirely so we don't
+    // advance its seen-record in the background — the tab is a coming-soon stub.
+    const gridDaily = CHARACTERS_ENABLED ? selectDailyFresh(gridPool, dateKey, 'grid') : [];
     games.items = itemDaily.length
       ? createDailyGame(itemDaily, dateKey, { mode: 'items' })
       : null;
-    games.grid = gridDaily.length
+    games.grid = (CHARACTERS_ENABLED && gridDaily.length)
       ? createDailyGame(gridDaily, dateKey, { mode: 'grid' })
       : null;
     renderHeaders();
@@ -191,7 +199,7 @@ async function init() {
     const lastVisit = readJson(STORAGE_LAST_VISIT);
     if (typeof lastVisit === 'string' && lastVisit !== dateKey) {
       // Defer slightly so the toast doesn't collide with the loading-state swap.
-      setTimeout(() => toast('A new day — fresh items and characters await!'), 600);
+      setTimeout(() => toast('A new day — three fresh items await!'), 600);
     }
     writeJson(STORAGE_LAST_VISIT, dateKey);
     armDateRolloverReload();
@@ -357,6 +365,18 @@ function prefetchImage(src) {
 }
 
 function applyTabAvailability() {
+  // While Characters is parked, keep its tab visible (so the nav still reads
+  // "Items / Characters") but mark it as a disabled coming-soon stub. The
+  // tablist stays up as long as Items is playable.
+  if (!CHARACTERS_ENABLED) {
+    els.tabItems.hidden = !games.items;
+    els.tabGrid.hidden = false;
+    els.tabGrid.classList.add('tab--coming-soon');
+    els.tabGrid.setAttribute('aria-disabled', 'true');
+    els.tabGrid.setAttribute('title', 'Coming soon');
+    if (els.tabs) els.tabs.hidden = !games.items;
+    return;
+  }
   // Hide tabs whose roster ended up empty. Clicking a no-op tab and seeing
   // nothing happen is more confusing than just not showing it. If only one
   // mode is available we hide the whole tablist — there's nothing to
@@ -849,7 +869,22 @@ function updateSkipButton() {
 }
 
 els.tabItems.addEventListener('click', () => setMode('items'));
-els.tabGrid.addEventListener('click', () => setMode('grid'));
+els.tabGrid.addEventListener('click', () => {
+  if (!CHARACTERS_ENABLED) { showComingSoon(); return; }
+  setMode('grid');
+});
+
+// Coming-soon affordance for the parked Characters tab: a toast plus a quick
+// shake on the tab so a tap reads as "intentionally not available yet".
+let comingSoonTimer = null;
+function showComingSoon() {
+  toast('Characters mode is coming soon — stay tuned!');
+  els.tabGrid.classList.remove('tab--nudge');
+  void els.tabGrid.offsetWidth;
+  els.tabGrid.classList.add('tab--nudge');
+  if (comingSoonTimer) clearTimeout(comingSoonTimer);
+  comingSoonTimer = setTimeout(() => els.tabGrid.classList.remove('tab--nudge'), 500);
+}
 
 // ARIA tablist keyboard pattern: Left/Right (and Home/End) move focus AND
 // activate the tab. Tab key continues to escape the tablist into the rest
@@ -873,6 +908,12 @@ function onTabKeyDown(e) {
     default: return;
   }
   e.preventDefault();
+  // Characters is parked — arrowing onto it surfaces the coming-soon toast
+  // rather than silently snapping focus back to Items.
+  if (!CHARACTERS_ENABLED && TAB_ORDER[nextIdx] === 'grid') {
+    showComingSoon();
+    return;
+  }
   // Skip to the next available tab if the chosen one has no game (e.g.
   // items roster failed to load). One hop is enough — there are only two.
   const targetMode = games[TAB_ORDER[nextIdx]] ? TAB_ORDER[nextIdx] : TAB_ORDER[(nextIdx + 1) % TAB_ORDER.length];
@@ -1249,38 +1290,6 @@ function triggerSwipeHint() {
   el.addEventListener('animationend', () => {
     el.classList.remove('swipe-hint');
   }, { once: true });
-}
-
-const hardResetBtn = document.getElementById('hard-reset-btn');
-if (hardResetBtn) {
-  const idleLabel = 'Hard reset';
-  const armedLabel = 'Tap again to confirm';
-  let armedTimer = null;
-  const disarm = () => {
-    hardResetBtn.textContent = idleLabel;
-    hardResetBtn.classList.remove('btn--hard-reset-armed');
-    armedTimer = null;
-  };
-  hardResetBtn.addEventListener('click', () => {
-    if (!armedTimer) {
-      hardResetBtn.textContent = armedLabel;
-      hardResetBtn.classList.add('btn--hard-reset-armed');
-      armedTimer = setTimeout(disarm, 3000);
-      return;
-    }
-    clearTimeout(armedTimer);
-    armedTimer = null;
-    try {
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('wcat:')) localStorage.removeItem(key);
-      }
-    } catch { /* private mode — nothing to clear */ }
-    const url = new URL(window.location.href);
-    url.search = '';
-    url.hash = '';
-    window.location.replace(url.toString());
-  });
 }
 
 let toastTimer = null;
