@@ -371,6 +371,15 @@ const PALETTES = {
     '#1A1A1A', // black
     '#E63946', // red
   ],
+  // Gerald's red "33" basketball jersey. Distractors are blue, an egg-shell
+  // off-white, and a grass green — three clearly distinct families well off
+  // the red.
+  'gerald-shirt': [
+    '#B91F03', // Gerald jersey red (correct, mirrors items.json)
+    '#4A90D9', // blue
+    '#F0EAD6', // egg shell white
+    '#6FB04A', // green
+  ],
   // Freakazoid's red superhero suit. Distractors are blue, gray, and purple —
   // distinct families so no near-red muddies the pick.
   'freakazoid-suit': [

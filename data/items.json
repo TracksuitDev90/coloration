@@ -874,5 +874,15 @@
     "image": "assets/photos/freakazoid-suit.png",
     "quadPalette": "freakazoid-suit",
     "verified": true
+  },
+  {
+    "id": "gerald-shirt",
+    "type": "item",
+    "name": "Gerald's shirt",
+    "show": "Hey Arnold!",
+    "color": { "hex": "#B91F03", "name": "Gerald Jersey Red" },
+    "image": "assets/photos/gerald-shirt.png",
+    "quadPalette": "gerald-shirt",
+    "verified": true
   }
 ]

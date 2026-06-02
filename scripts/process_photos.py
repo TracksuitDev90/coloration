@@ -322,6 +322,7 @@ ASSIGNMENTS = {
     "billy-shirt-stripe":       "IMG_0702.webp",
     "butters-jacket":           "IMG_0704.webp",
     "freakazoid-suit":          "IMG_0705.webp",
+    "gerald-shirt":             "IMG_0699.webp",
 }
 
 
