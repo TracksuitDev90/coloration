@@ -337,6 +337,92 @@ const PALETTES = {
     '#E63946', // red
     '#87CEEB', // soft sky blue
   ],
+  // T.J. Detweiler's deep forest-green bomber jacket. Distractors are ruby
+  // red, sky blue, and a leather brown — three clearly distinct families that
+  // bracket the green without offering a near-shade.
+  'tj-detweiler-jacket': [
+    '#34604E', // T.J. jacket green (correct, mirrors items.json)
+    '#9B111E', // ruby red
+    '#87CEEB', // sky blue
+    '#8B5A2B', // leather brown
+  ],
+  // Buster Bunny's red-orange T-shirt. Distractors are baby blue, apple
+  // green, and a burnt orange — the orange is the warm near-family trap, the
+  // others clearly cold/distinct.
+  'buster-bunny-shirt': [
+    '#FA422B', // Buster shirt red (correct, mirrors items.json)
+    '#89CFF0', // baby blue
+    '#8DB600', // apple green
+    '#CC5500', // burnt orange
+  ],
+  // Billy's blue T-shirt stripe. Distractors are red, daisy yellow, and a
+  // grass green — three saturated hue families clearly apart from the blue.
+  'billy-shirt-stripe': [
+    '#047CC0', // Billy stripe blue (correct, mirrors items.json)
+    '#E63946', // red
+    '#FFD93D', // daisy yellow
+    '#6FB04A', // green
+  ],
+  // Butters's teal-green jacket. Distractors are orange, black, and red —
+  // three chromatic-and-neutral options that read as clearly different.
+  'butters-jacket': [
+    '#51B491', // Butters jacket teal (correct, mirrors items.json)
+    '#F39C12', // orange
+    '#1A1A1A', // black
+    '#E63946', // red
+  ],
+  // Gerald's red "33" basketball jersey. Distractors are blue, an egg-shell
+  // off-white, and a grass green — three clearly distinct families well off
+  // the red.
+  'gerald-shirt': [
+    '#B91F03', // Gerald jersey red (correct, mirrors items.json)
+    '#4A90D9', // blue
+    '#F0EAD6', // egg shell white
+    '#6FB04A', // green
+  ],
+  // Freakazoid's red superhero suit. Distractors are blue, gray, and purple —
+  // distinct families so no near-red muddies the pick.
+  'freakazoid-suit': [
+    '#D4260D', // Freakazoid suit red (correct, mirrors items.json)
+    '#4A90D9', // blue
+    '#9B9B9B', // gray
+    '#8B5FBF', // purple
+  ],
+  // Cosmo's Mom's mint-teal hair. Distractors are a grass green, pink, and a
+  // deep purple — the grass green is the cool near-family trap, kept clearly
+  // darker/more saturated than her pale mint.
+  'cosmo-mom-hair': [
+    '#91F5AC', // Cosmo's Mom teal (correct, mirrors items.json)
+    '#6FB04A', // green
+    '#FF8FB3', // pink
+    '#5B2C8C', // deep purple
+  ],
+  // The Mystery Machine's orange-red logo lettering. Distractors are blue, a
+  // soft black, and yellow — three clearly different families from the warm
+  // orange-red.
+  'mystery-machine-text': [
+    '#D5331E', // Mystery Machine orange-red (correct, mirrors items.json)
+    '#4A90D9', // blue
+    '#2B2B2B', // soft black
+    '#F4D03F', // yellow
+  ],
+  // Dora's pink T-shirt. Distractors are yellow, green, and a very light pink
+  // near-miss kept far lighter than her saturated pink so it never reads as
+  // the same shade.
+  'dora-shirt': [
+    '#F371AC', // Dora shirt pink (correct, mirrors items.json)
+    '#F4D03F', // yellow
+    '#6FB04A', // green
+    '#FBD3E0', // very light pink
+  ],
+  // Bobby Hill's slate-blue T-shirt. Distractors are tan, black, and a soft
+  // green — three earthy/neutral families clearly apart from the muted slate.
+  'bobby-hill-shirt': [
+    '#567277', // Bobby shirt slate (correct, mirrors items.json)
+    '#D2B48C', // tan
+    '#1A1A1A', // black
+    '#7FB069', // soft green
+  ],
 };
 
 const BOX_COUNT = 4;

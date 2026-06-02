@@ -65,10 +65,10 @@ PRECROP = {
     # the whole hang-glider. Leaves his full head + arrow in frame.
     "IMG_0683.webp": {"left": 0.30, "right": 0.18, "top": 0.04, "bottom": 0.18},
     # Roger Klotz strikes a full-body dance pose; the item is his orange hair.
-    # Drop the lower body so the framing is the top half with his full head and
-    # hair showing. The transparent bg keeps it on the isolated-subject path,
-    # which pads back to 4:3 without ever clipping the head.
-    "IMG_0685.webp": {"bottom": 0.45},
+    # Drop the legs so the framing is head-to-lower-waist. Paired with a
+    # Y_ANCHOR of 1.0 below, his waistline sits flush at the bottom of the 4:3
+    # frame instead of floating mid-box with the waist clipped off.
+    "IMG_0685.webp": {"bottom": 0.40},
 }
 
 # Vertical anchor for isolated-subject crops. 0.5 (default) centers the
@@ -78,6 +78,9 @@ PRECROP = {
 # floating with bg padding below.
 Y_ANCHOR = {
     "IMG_0379.png": 1.0,  # Squidward - anchor shirt bottom to frame bottom
+    # Roger Klotz - pin his lower waist to the bottom of the frame so he doesn't
+    # float mid-box with the waistline clipped off.
+    "IMG_0685.webp": 1.0,
 }
 
 # After precrop + cover_crop strategy is selected, shift the centred crop
@@ -313,6 +316,13 @@ ASSIGNMENTS = {
     "jade-hoodie":              "IMG_0691.webp",
     "penny-proud-cardigan":     "IMG_0693.webp",
     "dw-dress":                 "IMG_0694.png",
+    # ---- Newest item additions ----
+    "tj-detweiler-jacket":      "IMG_0696.webp",
+    "buster-bunny-shirt":       "IMG_0701.webp",
+    "billy-shirt-stripe":       "IMG_0702.webp",
+    "butters-jacket":           "IMG_0704.webp",
+    "freakazoid-suit":          "IMG_0705.webp",
+    "gerald-shirt":             "IMG_0699.webp",
 }
 
 
