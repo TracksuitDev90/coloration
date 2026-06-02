@@ -22,7 +22,11 @@ initTitleBlob();
 
 const COL_LABELS = ['A', 'B', 'C', 'D'];
 const GRID_SIZE = 4;
-const ROUNDS_PER_DAY = 4;
+// TEMP: daily limit lifted so the whole roster surfaces in a single day for
+// accuracy verification. Infinity makes the selection draw every item (capped
+// to the pool size), and the round chip already drops its "/ N" suffix when
+// the run is open-ended. Restore to 4 to re-enable the one-quartet-a-day cap.
+const ROUNDS_PER_DAY = Infinity;
 
 // Characters mode is parked as "coming soon" while it's being reworked. The
 // tab still renders (so the nav reads "Items / Characters") but selecting it
@@ -1324,5 +1328,41 @@ function toast(message) {
   toastTimer = setTimeout(() => {
     host.classList.remove('toast--visible');
   }, 3200);
+}
+
+// Hard reset: wipe every wcat:* key (seen records, daily locks, in-progress
+// run, best streak) and reload to a clean URL. Two-tap confirm so a stray
+// click can't nuke progress — the first tap arms it, a second within 3s
+// commits, otherwise it disarms.
+const hardResetBtn = document.getElementById('hard-reset-btn');
+if (hardResetBtn) {
+  const idleLabel = 'Hard reset';
+  const armedLabel = 'Tap again to confirm';
+  let armedTimer = null;
+  const disarm = () => {
+    hardResetBtn.textContent = idleLabel;
+    hardResetBtn.classList.remove('btn--hard-reset-armed');
+    armedTimer = null;
+  };
+  hardResetBtn.addEventListener('click', () => {
+    if (!armedTimer) {
+      hardResetBtn.textContent = armedLabel;
+      hardResetBtn.classList.add('btn--hard-reset-armed');
+      armedTimer = setTimeout(disarm, 3000);
+      return;
+    }
+    clearTimeout(armedTimer);
+    armedTimer = null;
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('wcat:')) localStorage.removeItem(key);
+      }
+    } catch { /* private mode — nothing to clear */ }
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = '';
+    window.location.replace(url.toString());
+  });
 }
 
