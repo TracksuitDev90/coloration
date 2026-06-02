@@ -4,10 +4,11 @@
 
 import { hexToHsl } from './grid.js';
 
-// Three fresh entries per UTC day. This is both the default daily slice size
+// Four fresh entries per UTC day. This is both the default daily slice size
 // and the `slotsPerDay` stride the cross-day position rotation advances by, so
-// each day surfaces a new trio and the answer position keeps rotating cleanly.
-const CHARACTERS_PER_DAY = 3;
+// each day surfaces a new quartet and the answer position keeps rotating
+// cleanly.
+const CHARACTERS_PER_DAY = 4;
 
 // Day 0 of the rotation. Day index 0 picks the first slice of the pool;
 // each subsequent day advances by CHARACTERS_PER_DAY so every entry surfaces
@@ -17,7 +18,7 @@ const CHARACTERS_PER_DAY = 3;
 // Exported so the verify scripts can derive their day-keys from the same
 // source of truth instead of hardcoding a duplicate date that would
 // silently drift if this constant ever changes.
-export const ROTATION_EPOCH = '2026-05-09';
+export const ROTATION_EPOCH = '2026-06-02';
 
 export function getUtcDateKey(now = new Date()) {
   const y = now.getUTCFullYear();
@@ -48,7 +49,7 @@ function mulberry32(seed) {
 
 function parseUtcDateKey(key) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
-  if (!m) return Date.UTC(2026, 4, 9);
+  if (!m) return Date.UTC(2026, 5, 2);
   return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
 

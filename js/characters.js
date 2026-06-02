@@ -18,7 +18,13 @@ export async function loadCharacters() {
     ...chars.map(c => ({ ...c, type: c.type || 'grid' })),
     ...items.map(c => ({ ...c, type: 'item' })),
   ];
-  return merged.map(c => ({ ...c, imageSrc: resolveImage(c) }));
+  return merged.map(c => ({
+    ...c,
+    imageSrc: resolveImage(c),
+    // Original PNG kept as a fallback for the rare browser without WebP
+    // support; the <img> swaps to it via onerror (see js/main.js).
+    imageFallback: c.image || null,
+  }));
 }
 
 async function fetchJson(path) {
@@ -42,8 +48,17 @@ function validate(list, label, allowEmpty = false) {
 }
 
 function resolveImage(c) {
-  if (c.image) return c.image;
+  if (c.image) return preferWebp(c.image);
   return placeholderDataUri(c);
+}
+
+// Photos ship as optimized WebP alongside the source PNG (see
+// scripts/optimize_photos.py) — typically ~90% smaller, so they load fast on
+// slow or congested connections without a visible quality drop. Point the
+// runtime at the WebP; the PNG remains the fallback for browsers that can't
+// decode WebP.
+function preferWebp(src) {
+  return src.replace(/\.png$/i, '.webp');
 }
 
 // SVG card: dark neutral background, character initials inside a soft circle,

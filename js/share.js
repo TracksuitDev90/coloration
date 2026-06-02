@@ -10,6 +10,11 @@ const W = 1080;
 const H = 1080;
 const PADDING = 64;
 
+// Portraits render 10% larger than the row's inner height. The extra size is
+// absorbed by the row's vertical padding (and re-centred), so rows don't grow
+// or collide — the character photo just reads a touch bigger on the card.
+const PORTRAIT_SCALE = 1.1;
+
 const BOX_COLORS = {
   empty: '#1a1d24',
   emptyStroke: '#2c333f',
@@ -283,9 +288,9 @@ function drawColumnRow(ctx, snapshot, i, x, y, w, h) {
   ctx.restore();
 
   const innerPad = 10;
-  const portraitSize = h - innerPad * 2;
+  const portraitSize = (h - innerPad * 2) * PORTRAIT_SCALE;
   const portraitX = x + innerPad;
-  const portraitY = y + innerPad;
+  const portraitY = y + (h - portraitSize) / 2;
 
   drawPortraitFrame(ctx, portraitX, portraitY, portraitSize);
   drawPortrait(ctx, character, portraitX, portraitY, portraitSize);
@@ -451,16 +456,9 @@ function drawFooter(ctx) {
   ctx.fillStyle = 'rgba(255,255,255,0.06)';
   ctx.fillRect(PADDING, H - 96, W - PADDING * 2, 1);
 
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = TEXT_PRIMARY;
-  ctx.font = '700 26px "Cormorant Garamond", "Iowan Old Style", Georgia, "Times New Roman", serif';
-  ctx.fillText('Coloration', PADDING, H - 78);
-
-  ctx.fillStyle = TEXT_MUTED;
-  ctx.font = '600 20px "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('Play today’s puzzle', PADDING, H - 44);
-
-  // Legend on the right — three small boxes with labels.
+  // Result legend — three small boxes with labels. The "Coloration / Play
+  // today's puzzle" wordmark used to sit on the left here but was removed;
+  // the header already carries the brand, so the footer is just the key.
   drawLegend(ctx, W - PADDING, H - 70);
 }
 
@@ -517,9 +515,9 @@ function drawRow(ctx, snapshot, i, x, y, w, h) {
   ctx.restore();
 
   const innerPad = 14;
-  const portraitSize = h - innerPad * 2;
+  const portraitSize = (h - innerPad * 2) * PORTRAIT_SCALE;
   const portraitX = x + innerPad;
-  const portraitY = y + innerPad;
+  const portraitY = y + (h - portraitSize) / 2;
 
   drawPortraitFrame(ctx, portraitX, portraitY, portraitSize);
   drawPortrait(ctx, character, portraitX, portraitY, portraitSize);
