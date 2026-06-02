@@ -17,8 +17,12 @@ import { buildQuad } from './quad.js';
 import { positionForRound, seedForRound } from './daily.js';
 
 const STORAGE_KEYS = {
+  // Lifetime best streak survives the coloration reset — keep it on v3.
   bestStreak: 'wcat:v3:bestStreak',
-  daily: 'wcat:v3:daily',
+  // In-progress daily run. Bumped v3 -> v4 alongside the seen/lock keys in
+  // main.js so today's puzzle resets fresh instead of resuming the pre-reset
+  // rounds (which referenced the old daily selection).
+  daily: 'wcat:v4:daily',
 };
 
 const GRID_MAX_GUESSES = 3;
