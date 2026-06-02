@@ -69,6 +69,7 @@
     "show": "Scooby-Doo, Where Are You!",
     "color": { "hex": "#D5331E", "name": "Mystery Machine Orange-Red" },
     "image": "assets/photos/mystery-machine-text.png",
+    "quadPalette": "mystery-machine-text",
     "verified": true
   },
   {
@@ -274,6 +275,7 @@
     "show": "Dora the Explorer",
     "color": { "hex": "#F371AC", "name": "Dora Shirt Pink" },
     "image": "assets/photos/dora-shirt.png",
+    "quadPalette": "dora-shirt",
     "verified": true
   },
   {
@@ -292,6 +294,7 @@
     "show": "The Fairly OddParents",
     "color": { "hex": "#91F5AC", "name": "Cosmo's Mom Teal" },
     "image": "assets/photos/cosmo-mom-hair.png",
+    "quadPalette": "cosmo-mom-hair",
     "verified": true
   },
   {
@@ -632,6 +635,7 @@
     "show": "King of the Hill",
     "color": { "hex": "#567277", "name": "Bobby Shirt Slate" },
     "image": "assets/photos/bobby-hill-shirt.png",
+    "quadPalette": "bobby-hill-shirt",
     "verified": true
   },
   {
@@ -819,6 +823,56 @@
     "color": { "hex": "#F671AB", "name": "D.W. Dress Pink" },
     "image": "assets/photos/dw-dress.png",
     "quadPalette": "dw-dress",
+    "verified": true
+  },
+  {
+    "id": "tj-detweiler-jacket",
+    "type": "item",
+    "name": "T.J. Detweiler's jacket",
+    "show": "Recess",
+    "color": { "hex": "#34604E", "name": "T.J. Jacket Green" },
+    "image": "assets/photos/tj-detweiler-jacket.png",
+    "quadPalette": "tj-detweiler-jacket",
+    "verified": true
+  },
+  {
+    "id": "buster-bunny-shirt",
+    "type": "item",
+    "name": "Buster Bunny's T-shirt",
+    "show": "Tiny Toon Adventures",
+    "color": { "hex": "#FA422B", "name": "Buster Shirt Red" },
+    "image": "assets/photos/buster-bunny-shirt.png",
+    "quadPalette": "buster-bunny-shirt",
+    "verified": true
+  },
+  {
+    "id": "billy-shirt-stripe",
+    "type": "item",
+    "name": "Billy's T-shirt stripe",
+    "show": "The Grim Adventures of Billy and Mandy",
+    "color": { "hex": "#047CC0", "name": "Billy Stripe Blue" },
+    "image": "assets/photos/billy-shirt-stripe.png",
+    "quadPalette": "billy-shirt-stripe",
+    "verified": true
+  },
+  {
+    "id": "butters-jacket",
+    "type": "item",
+    "name": "Butters's jacket",
+    "show": "South Park",
+    "color": { "hex": "#51B491", "name": "Butters Jacket Teal" },
+    "image": "assets/photos/butters-jacket.png",
+    "quadPalette": "butters-jacket",
+    "verified": true
+  },
+  {
+    "id": "freakazoid-suit",
+    "type": "item",
+    "name": "Freakazoid's suit",
+    "show": "Freakazoid!",
+    "color": { "hex": "#D4260D", "name": "Freakazoid Suit Red" },
+    "image": "assets/photos/freakazoid-suit.png",
+    "quadPalette": "freakazoid-suit",
     "verified": true
   }
 ]
