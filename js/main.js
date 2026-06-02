@@ -22,7 +22,7 @@ initTitleBlob();
 
 const COL_LABELS = ['A', 'B', 'C', 'D'];
 const GRID_SIZE = 4;
-const ROUNDS_PER_DAY = 3;
+const ROUNDS_PER_DAY = 4;
 
 // Characters mode is parked as "coming soon" while it's being reworked. The
 // tab still renders (so the nav reads "Items / Characters") but selecting it
@@ -34,12 +34,12 @@ const CHARACTERS_ENABLED = false;
 // encountered (so each day surfaces fresh entries until the roster wraps).
 // Lock pins today's selection so refreshing the page returns the same trio
 // even after the IDs were already moved into the seen record.
-const STORAGE_SEEN = { items: 'wcat:v2:seen:items', grid: 'wcat:v2:seen:grid' };
-const STORAGE_LOCK = { items: 'wcat:v2:daily-lock:items', grid: 'wcat:v2:daily-lock:grid' };
+const STORAGE_SEEN = { items: 'wcat:v3:seen:items', grid: 'wcat:v3:seen:grid' };
+const STORAGE_LOCK = { items: 'wcat:v3:daily-lock:items', grid: 'wcat:v3:daily-lock:grid' };
 // Last UTC date the player opened the app. Compared to today's key on init
 // to surface a "fresh puzzles" prompt and to detect midnight rollovers
 // while the page is backgrounded.
-const STORAGE_LAST_VISIT = 'wcat:v2:last-visit';
+const STORAGE_LAST_VISIT = 'wcat:v3:last-visit';
 
 function selectDailyFresh(pool, key, mode) {
   if (!pool.length) return [];
@@ -494,6 +494,15 @@ function renderRound() {
   // image's bytes arrive — items and characters are separate experiences.
   if (els.img.getAttribute('src') !== c.imageSrc) {
     els.img.removeAttribute('src');
+    // Fall back to the original PNG if the optimized WebP can't be decoded
+    // (very old browsers). Guard against a loop: only swap once, and never
+    // for the placeholder data URI.
+    els.img.onerror = () => {
+      els.img.onerror = null;
+      if (c.imageFallback && els.img.src !== c.imageFallback) {
+        els.img.src = c.imageFallback;
+      }
+    };
     els.img.src = c.imageSrc;
   }
   els.img.alt = isItemRound(s)

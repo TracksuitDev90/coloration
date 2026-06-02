@@ -1250,6 +1250,13 @@ body {
     margin-top: 4px;
   }
 
+  /* The finished share card sat too close to the Items | Characters tabs on
+     phones and felt squished. Drop it down ~15% of the viewport so it has
+     clear breathing room below the tab row. */
+  .share {
+    margin-top: 15vh;
+  }
+
   .bottombar {
     display: none;
   }

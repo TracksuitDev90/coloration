@@ -17,8 +17,8 @@ import { buildQuad } from './quad.js';
 import { positionForRound, seedForRound } from './daily.js';
 
 const STORAGE_KEYS = {
-  bestStreak: 'wcat:v2:bestStreak',
-  daily: 'wcat:v2:daily',
+  bestStreak: 'wcat:v3:bestStreak',
+  daily: 'wcat:v3:daily',
 };
 
 const GRID_MAX_GUESSES = 3;
