@@ -34,12 +34,18 @@ const CHARACTERS_ENABLED = false;
 // encountered (so each day surfaces fresh entries until the roster wraps).
 // Lock pins today's selection so refreshing the page returns the same trio
 // even after the IDs were already moved into the seen record.
-const STORAGE_SEEN = { items: 'wcat:v3:seen:items', grid: 'wcat:v3:seen:grid' };
-const STORAGE_LOCK = { items: 'wcat:v3:daily-lock:items', grid: 'wcat:v3:daily-lock:grid' };
+//
+// Namespace bumped v3 -> v4 to reset today's coloration after the roster grew
+// and the round-spacing rule changed: old daily locks would otherwise restore
+// the pre-reset selection for returning players. The bump clears every
+// browser's seen/lock so today regenerates fresh from the new pool. Lifetime
+// best-streak keeps its v3 key in game.js so the reset doesn't wipe records.
+const STORAGE_SEEN = { items: 'wcat:v4:seen:items', grid: 'wcat:v4:seen:grid' };
+const STORAGE_LOCK = { items: 'wcat:v4:daily-lock:items', grid: 'wcat:v4:daily-lock:grid' };
 // Last UTC date the player opened the app. Compared to today's key on init
 // to surface a "fresh puzzles" prompt and to detect midnight rollovers
 // while the page is backgrounded.
-const STORAGE_LAST_VISIT = 'wcat:v3:last-visit';
+const STORAGE_LAST_VISIT = 'wcat:v4:last-visit';
 
 function selectDailyFresh(pool, key, mode) {
   if (!pool.length) return [];

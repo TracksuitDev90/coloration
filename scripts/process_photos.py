@@ -60,6 +60,15 @@ PRECROP = {
     # torso (priority: waist-up with the full head + suit triangle visible).
     "IMG_0555.webp": {"bottom": 0.40},
     "IMG_0558.webp": {"bottom": 0.40},
+    # Aang is gliding across a wide sky shot — pull the sides/sky in so the
+    # crop centres on his head and the blue arrow tattoo (the item) instead of
+    # the whole hang-glider. Leaves his full head + arrow in frame.
+    "IMG_0683.webp": {"left": 0.30, "right": 0.18, "top": 0.04, "bottom": 0.18},
+    # Roger Klotz strikes a full-body dance pose; the item is his orange hair.
+    # Drop the lower body so the framing is the top half with his full head and
+    # hair showing. The transparent bg keeps it on the isolated-subject path,
+    # which pads back to 4:3 without ever clipping the head.
+    "IMG_0685.webp": {"bottom": 0.45},
 }
 
 # Vertical anchor for isolated-subject crops. 0.5 (default) centers the
@@ -119,6 +128,9 @@ FORCE_COVER = {
     # pads back out to 4:3 with white space above/below. cover_crop fills the
     # whole frame; the trade-off is the outer edge of each hand gets clipped.
     "IMG_0378.jpeg",  # Shrek
+    # Aang - sky/wing scene; after the side precrop it's still a full-bleed
+    # scene, so cover_crop trims to 4:3 around his head + arrow.
+    "IMG_0683.webp",  # Aang's arrow
 }
 
 # Per-image override of the bbox padding fraction used by isolated_subject.
@@ -196,7 +208,7 @@ ASSIGNMENTS = {
     "boots-stomach":          "IMG_0426.jpeg",
     "cosmo-mom-hair":         "IMG_0427.jpeg",
     "timmy-turner-hat":       "IMG_0428.webp",
-    "aang-arrow":             "IMG_0429.webp",
+    "aang-arrow":             "IMG_0683.webp",
     "inspector-gadget-coat":  "IMG_0430.jpeg",
     "arthur-sweater":         "IMG_0431.webp",
     "ferb-hair":              "IMG_0432.jpeg",
@@ -293,6 +305,14 @@ ASSIGNMENTS = {
     # ---- Codename: Kids Next Door additions ----
     "numbuh-3-sweater":         "IMG_0659.webp",
     "numbuh-5-hat":             "IMG_0657.webp",
+    # ---- Newest item additions ----
+    "barney-rubble-shirt":      "IMG_0681.webp",
+    "roger-klotz-hair":         "IMG_0685.webp",
+    "fred-jones-ascot":         "IMG_0687.webp",
+    "dick-dastardly-coat":      "IMG_0689.webp",
+    "jade-hoodie":              "IMG_0691.webp",
+    "penny-proud-cardigan":     "IMG_0693.webp",
+    "dw-dress":                 "IMG_0694.png",
 }
 
 
@@ -535,7 +555,12 @@ def expand_with_bg(img, name):
 def process(src_path, dst_path):
     img = Image.open(src_path)
     if img.mode not in ("RGB", "RGBA"):
-        img = img.convert("RGBA" if "A" in img.getbands() else "RGB")
+        # Palette PNGs can carry transparency as a tRNS chunk rather than an
+        # alpha band ("transparency" in info). Convert those to RGBA too, or
+        # the cut-out background gets baked in as the palette's (often non-
+        # white) fill colour instead of being treated as transparent.
+        has_alpha = "A" in img.getbands() or "transparency" in img.info
+        img = img.convert("RGBA" if has_alpha else "RGB")
 
     img = expand_with_bg(img, src_path.name)
     img = precrop(img, src_path.name)

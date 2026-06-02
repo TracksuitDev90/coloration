@@ -271,6 +271,72 @@ const PALETTES = {
     '#3D9127', // Numbuh 3 green
     '#2D6BAA', // Numbuh 2 blue
   ],
+  // Barney Rubble's tan caveman tunic. Distractors are orange, light blue,
+  // and a grass green — three clearly distinct hue families that bracket the
+  // warm brown without offering a near-shade.
+  'barney-rubble-shirt': [
+    '#B48257', // Barney shirt brown (correct, mirrors items.json)
+    '#F39C12', // orange
+    '#87CEEB', // light blue
+    '#5C9F31', // grass green
+  ],
+  // Aang's air-nomad arrow tattoo reads as a soft steel blue. Distractors are
+  // purple, white, and a fire red — pulling the Fire Nation red in as the
+  // thematic "wrong element" trap while staying clearly off the blue.
+  'aang-arrow': [
+    '#80A1CA', // Aang arrow blue (correct, mirrors items.json)
+    '#8B5FBF', // purple
+    '#FFFFFF', // white
+    '#E8412E', // fire red
+  ],
+  // Roger Klotz's spiky orange hair. Distractors are lime green, purple, and
+  // a light teal blue — distinct families so no near-orange muddies the pick.
+  'roger-klotz-hair': [
+    '#F27A2A', // Roger Klotz orange (correct, mirrors items.json)
+    '#9ACD32', // lime green
+    '#8B5FBF', // purple
+    '#4FB6CC', // light teal blue
+  ],
+  // Fred Jones's orange ascot from Mystery Inc. Distractors are a soft green,
+  // a bright yellow, and a brown — warm-adjacent hues kept clear of the orange.
+  'fred-jones-ascot': [
+    '#DE6228', // Fred ascot orange (correct, mirrors items.json)
+    '#7FB069', // soft green
+    '#F4D03F', // bright yellow
+    '#7B4F2C', // brown
+  ],
+  // Dick Dastardly's deep purple coat. Distractors are red, dark green, and a
+  // tan brown — three saturated/earthy families well off the purple.
+  'dick-dastardly-coat': [
+    '#4B2E66', // Dastardly coat purple (correct, mirrors items.json)
+    '#C8102E', // red
+    '#2C6E3F', // dark green
+    '#A9794B', // tan brown
+  ],
+  // Jade Chan's orange hoodie. Distractors are fire-engine red, teal green,
+  // and black — the red is the warm near-family trap, the others clearly cold.
+  'jade-hoodie': [
+    '#EB8217', // Jade hoodie orange (correct, mirrors items.json)
+    '#D72631', // fire engine red
+    '#2A9D8F', // teal green
+    '#1A1A1A', // black
+  ],
+  // Penny Proud's rose-pink cardigan. Distractors are lilac purple, blueberry
+  // blue, and pumpkin orange — distinct families bracketing the pink.
+  'penny-proud-cardigan': [
+    '#CE5679', // Penny cardigan pink (correct, mirrors items.json)
+    '#B57EDC', // lilac purple
+    '#3953A4', // blueberry blue
+    '#F0801A', // pumpkin orange
+  ],
+  // D.W.'s pink jumper dress from Arthur. Distractors are yellow, red, and a
+  // soft sky blue — three clearly different tones from the pink.
+  'dw-dress': [
+    '#F671AB', // D.W. dress pink (correct, mirrors items.json)
+    '#F4D03F', // yellow
+    '#E63946', // red
+    '#87CEEB', // soft sky blue
+  ],
 };
 
 const BOX_COUNT = 4;

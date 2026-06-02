@@ -86,9 +86,45 @@ export function pickFreshDailyCharacters(allCharacters, dateKey, seenIds, mode =
   const exhausted = unseen.length < count;
   const pool = exhausted ? allCharacters : unseen;
   const ordered = shuffleSeeded(pool, hashString(`fresh:${mode}:${dateKey}`));
-  const sliced = ordered.slice(0, Math.min(count, pool.length));
+  const sliced = pickSpacedSlice(ordered, Math.min(count, pool.length));
   const spread = spreadByHueFamily(sliced, hashString(`spread:${mode}:${dateKey}`));
   return { picks: spread, exhausted };
+}
+
+// Choose `count` entries from the already-shuffled pool while holding any one
+// hue family to at most ceil(count/2) of the slice. That ceiling is the most
+// a family can occupy and still admit an ordering with no two same-family
+// rounds adjacent — so spreadByHueFamily below can always separate the colors
+// and the day never surfaces the same general color back to back. (Two oranges
+// in a four-round day is fine; two oranges *in a row* is not.)
+//
+// Entries are taken in the pool's existing seeded, unseen-first order so the
+// daily rotation and determinism are untouched; the cap only defers a third
+// same-family entry to a later day. If the pool is too homogeneous to fill the
+// slice under the cap, the deferred overflow tops it up (still in seeded order)
+// so the slice always reaches `count` and coverage of the roster is preserved.
+function pickSpacedSlice(ordered, count) {
+  if (ordered.length <= count) return ordered.slice();
+  const cap = Math.ceil(count / 2);
+  const famCount = new Map();
+  const picked = [];
+  const deferred = [];
+  for (const c of ordered) {
+    if (picked.length >= count) break;
+    const fam = hueFamily(c.color?.hex);
+    const n = famCount.get(fam) ?? 0;
+    if (n < cap) {
+      picked.push(c);
+      famCount.set(fam, n + 1);
+    } else {
+      deferred.push(c);
+    }
+  }
+  for (const c of deferred) {
+    if (picked.length >= count) break;
+    picked.push(c);
+  }
+  return picked;
 }
 
 // Round-robin draws one character at a time from each hue-family bucket so

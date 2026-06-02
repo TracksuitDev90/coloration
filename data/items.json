@@ -308,8 +308,9 @@
     "type": "item",
     "name": "Aang's arrow tattoo",
     "show": "Avatar: The Last Airbender",
-    "color": { "hex": "#2A6FB5", "name": "Aang Arrow Blue" },
+    "color": { "hex": "#80A1CA", "name": "Aang Arrow Blue" },
     "image": "assets/photos/aang-arrow.png",
+    "quadPalette": "aang-arrow",
     "verified": true
   },
   {
@@ -748,6 +749,76 @@
     "color": { "hex": "#F65A16", "name": "Russell Neckerchief Orange" },
     "image": "assets/photos/russell-neckerchief.png",
     "quadPalette": "russell-neckerchief",
+    "verified": true
+  },
+  {
+    "id": "barney-rubble-shirt",
+    "type": "item",
+    "name": "Barney's shirt",
+    "show": "The Flintstones",
+    "color": { "hex": "#B48257", "name": "Barney Shirt Brown" },
+    "image": "assets/photos/barney-rubble-shirt.png",
+    "quadPalette": "barney-rubble-shirt",
+    "verified": true
+  },
+  {
+    "id": "roger-klotz-hair",
+    "type": "item",
+    "name": "Roger Klotz's hair",
+    "show": "Doug",
+    "color": { "hex": "#F27A2A", "name": "Roger Klotz Orange" },
+    "image": "assets/photos/roger-klotz-hair.png",
+    "quadPalette": "roger-klotz-hair",
+    "verified": true
+  },
+  {
+    "id": "fred-jones-ascot",
+    "type": "item",
+    "name": "Fred Jones's ascot",
+    "show": "Scooby-Doo, Where Are You!",
+    "color": { "hex": "#DE6228", "name": "Fred Ascot Orange" },
+    "image": "assets/photos/fred-jones-ascot.png",
+    "quadPalette": "fred-jones-ascot",
+    "verified": true
+  },
+  {
+    "id": "dick-dastardly-coat",
+    "type": "item",
+    "name": "Dick Dastardly's coat",
+    "show": "Wacky Races",
+    "color": { "hex": "#4B2E66", "name": "Dastardly Coat Purple" },
+    "image": "assets/photos/dick-dastardly-coat.png",
+    "quadPalette": "dick-dastardly-coat",
+    "verified": true
+  },
+  {
+    "id": "jade-hoodie",
+    "type": "item",
+    "name": "Jade's hoodie",
+    "show": "Jackie Chan Adventures",
+    "color": { "hex": "#EB8217", "name": "Jade Hoodie Orange" },
+    "image": "assets/photos/jade-hoodie.png",
+    "quadPalette": "jade-hoodie",
+    "verified": true
+  },
+  {
+    "id": "penny-proud-cardigan",
+    "type": "item",
+    "name": "Penny Proud's cardigan",
+    "show": "The Proud Family",
+    "color": { "hex": "#CE5679", "name": "Penny Cardigan Pink" },
+    "image": "assets/photos/penny-proud-cardigan.png",
+    "quadPalette": "penny-proud-cardigan",
+    "verified": true
+  },
+  {
+    "id": "dw-dress",
+    "type": "item",
+    "name": "D.W.'s dress",
+    "show": "Arthur",
+    "color": { "hex": "#F671AB", "name": "D.W. Dress Pink" },
+    "image": "assets/photos/dw-dress.png",
+    "quadPalette": "dw-dress",
     "verified": true
   }
 ]
