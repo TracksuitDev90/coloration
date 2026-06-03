@@ -143,14 +143,15 @@ section('quad boards contain four visually distinct swatches', () => {
   let checked = 0;
   for (let i = 0; i < itemPool.length; i++) {
     const it = itemPool[i];
-    const q = buildQuad(it.color.hex, { seed: i + 1, palette: it.quadPalette });
+    const q = buildQuad(it.color.hex, { seed: i + 1, palette: it.quadPalette, combo: it.combo });
     assert.equal(q.boxes.length, QUAD_BOX_COUNT, `${it.id}: bad box count`);
     const hexes = q.boxes.map(b => b.hex);
     assert.equal(new Set(hexes).size, QUAD_BOX_COUNT, `${it.id}: duplicate hexes ${hexes.join(' ')}`);
     // Themed palettes (e.g. Power Rangers) ship hand-picked canonical hues
     // that may sit closer together than the generic gap; the runtime trusts
-    // the curation and skips the distinctness filter, so we do too.
-    if (it.quadPalette) { checked++; continue; }
+    // the curation and skips the distinctness filter, so we do too. Combo
+    // swatches are likewise hand-curated pairs, so they skip the filter.
+    if (it.quadPalette || it.combo) { checked++; continue; }
     const hsls = q.boxes.map(b => hexToHsl(b.hex));
     for (let a = 0; a < hsls.length; a++) {
       for (let b = a + 1; b < hsls.length; b++) {

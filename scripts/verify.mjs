@@ -39,7 +39,7 @@ for (let i = 0; i < items.length; i++) {
     console.error('BAD HEX', c.id, c.color.hex);
     errors++; continue;
   }
-  const q = buildQuad(c.color.hex, { seed: i + 1, palette: c.quadPalette });
+  const q = buildQuad(c.color.hex, { seed: i + 1, palette: c.quadPalette, combo: c.combo });
   if (q.boxes.length !== QUAD_BOX_COUNT) {
     console.error(`BAD BOX COUNT ${c.id}: ${q.boxes.length}`);
     errors++;
