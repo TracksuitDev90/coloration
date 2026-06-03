@@ -161,13 +161,47 @@ const PALETTES = {
     '#FFFFFF', // white
     '#5B7B9D', // muted / light navy blue
   ],
-  // Mac's red shirt from Foster's. Distractors are green, baby blue, and
-  // lilac purple so the round picks between four distinct hues.
+  // Mac's red shirt from Foster's. Distractors are royal purple, sunshine
+  // yellow, and bright green so the round picks between four distinct hues.
   'mac-shirt': [
-    '#D2292A', // Mac shirt red (correct, mirrors items.json)
-    '#6FB04A', // green
+    '#B32324', // Mac shirt red (correct, mirrors items.json)
+    '#6A0DAD', // royal purple
+    '#FFD400', // sunshine yellow
+    '#2ECC40', // bright green
+  ],
+  // Daria's olive-green jacket. Distractors are dark red (Jane's coat hue),
+  // black, and a tan orange — three families clearly apart from the green so
+  // there's never a near-green near-miss.
+  'daria-jacket': [
+    '#214D1B', // Daria jacket green (correct, mirrors items.json)
+    '#8B1A1A', // dark red
+    '#1A1A1A', // black
+    '#CD853F', // tan orange
+  ],
+  // Helga's pink bow. Distractors are baby blue, deep lilac purple, and fire
+  // truck red so the player picks between four distinct hues.
+  'helga-bow': [
+    '#FF69B4', // Helga bow pink (correct, mirrors items.json)
     '#89CFF0', // baby blue
-    '#C8A2C8', // lilac purple
+    '#9B72CF', // deep lilac purple
+    '#CE2029', // fire truck red
+  ],
+  // Dee Dee's pink tutu. Distractors are white, blue, and a deep red — three
+  // families clearly apart from her pink.
+  'dee-dee-tutu': [
+    '#FC698A', // Dee Dee pink (correct, mirrors items.json)
+    '#FFFFFF', // white
+    '#4A90D9', // blue
+    '#C5032F', // deep red
+  ],
+  // Arnold's light-blue hat. The near-miss is a deeper, more saturated blue
+  // (clearly darker than the hat so the two never read as the same swatch),
+  // paired with a yellow and a pink from unrelated hue families.
+  'arnolds-hat': [
+    '#5BA8D9', // Arnold hat blue (correct, mirrors items.json)
+    '#2083C5', // deeper, more saturated blue
+    '#F4D03F', // yellow
+    '#FF8FB3', // pink
   ],
   // CatDog — Dog's nose is a deep indigo. The "near miss" distractor is a
   // clearly lighter purple-blue (well above the canonical's lightness so it

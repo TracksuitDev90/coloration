@@ -108,6 +108,7 @@
     "show": "Hey Arnold!",
     "color": { "hex": "#5BA8D9", "name": "Arnold Hat Blue" },
     "image": "assets/photos/arnolds-hat.png",
+    "quadPalette": "arnolds-hat",
     "verified": true
   },
   {
@@ -117,6 +118,7 @@
     "show": "Hey Arnold!",
     "color": { "hex": "#FF69B4", "name": "Helga Bow Pink" },
     "image": "assets/photos/helga-bow.png",
+    "quadPalette": "helga-bow",
     "verified": true
   },
   {
@@ -152,8 +154,9 @@
     "type": "item",
     "name": "Daria's jacket",
     "show": "Daria",
-    "color": { "hex": "#3F5E3A", "name": "Daria Jacket Green" },
+    "color": { "hex": "#214D1B", "name": "Daria Jacket Green" },
     "image": "assets/photos/daria-jacket.png",
+    "quadPalette": "daria-jacket",
     "verified": true
   },
   {
@@ -172,6 +175,7 @@
     "show": "Dexter's Laboratory",
     "color": { "hex": "#FC698A", "name": "Dee Dee Pink" },
     "image": "assets/photos/dee-dee-tutu.png",
+    "quadPalette": "dee-dee-tutu",
     "verified": true
   },
   {
@@ -265,7 +269,7 @@
     "type": "item",
     "name": "Mac's shirt",
     "show": "Foster's Home for Imaginary Friends",
-    "color": { "hex": "#D2292A", "name": "Mac Shirt Red" },
+    "color": { "hex": "#B32324", "name": "Mac Shirt Red" },
     "image": "assets/photos/mac-shirt.png",
     "quadPalette": "mac-shirt",
     "verified": true

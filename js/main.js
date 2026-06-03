@@ -567,6 +567,10 @@ function renderRound() {
 }
 
 function promptText(c) {
+  // Combo items ask the player to match a pair of colours, so the prompt has
+  // to stipulate that up front — otherwise "What color is …?" reads as a
+  // single-swatch question even though the board shows two-tone options.
+  if (c.combo) return `What color combo is ${c.name}?`;
   return `What color is ${c.name}?`;
 }
 
