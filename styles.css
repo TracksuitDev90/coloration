@@ -677,8 +677,11 @@ body {
 /* ---------- Board ---------- */
 .board {
   display: grid;
-  grid-template-columns: 28px 1fr;
-  grid-template-rows: 28px 1fr;
+  /* minmax(0, 1fr) (not bare 1fr) so the cell track can shrink to the board's
+     square box; a bare fr track keeps a min-content floor and the swatches
+     would push the row taller than the box, rendering them as rectangles. */
+  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-rows: 28px minmax(0, 1fr);
   width: 100%;
   gap: var(--gap);
 }
@@ -745,8 +748,9 @@ body {
 .grid {
   grid-row: 2; grid-column: 2;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  min-height: 0;
   gap: var(--gap);
   padding: var(--gap);
   /* Darker than the page so the swatches read crisply, and darker than the
@@ -899,6 +903,12 @@ body {
   display: flex;
   justify-content: center;
 }
+
+/* `display: flex` above outranks the UA `[hidden]` rule, so honour the
+   attribute explicitly. Without this the empty share slot stayed in flow
+   during play — and on phones its `margin-top: 15vh` (below) injected a tall
+   phantom gap that pushed the Skip/Next row off the bottom of the screen. */
+.share[hidden] { display: none; }
 
 .share-card {
   width: 100%;
@@ -1182,14 +1192,13 @@ body {
     font-size: 11px;
     border-bottom-width: 3px;
   }
-  .tab { padding: 10px 18px; min-height: 44px; }
   .character-title { font-size: clamp(20px, 6vw, 26px); min-height: 1em; }
   .btn { padding: 12px 20px; min-height: 48px; }
   .actions { gap: 10px; }
   .share-actions .btn { flex: 1 1 100%; min-width: 0; max-width: none; }
   .stage { gap: 8px; padding: 8px 12px; }
   .tabs { margin-top: 8px; }
-  .board { grid-template-columns: 22px 1fr; grid-template-rows: 22px 1fr; }
+  .board { grid-template-columns: 22px minmax(0, 1fr); grid-template-rows: 22px minmax(0, 1fr); }
 }
 
 /* Phones: full-width photo, flexible swatches, no scroll. The stage
@@ -1200,9 +1209,18 @@ body {
 @media (max-width: 759px) {
   .stage {
     min-height: 0;
-    overflow-y: clip;
-    padding: 6px 0;
+    /* Gentle scroll instead of clip: on the shortest phones nothing is ever
+       fully cut off, while the swatch sizing below keeps it a single screen
+       in the common case. The bottom safe-area pad keeps the Skip/Next strip
+       clear of the home indicator / browser toolbar. */
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 6px 0 max(8px, env(safe-area-inset-bottom));
     gap: 6px;
+    /* Square colour board/quad cap: shrinks the swatches (both dimensions, so
+       they stay square) enough to leave room for the prompt and the always-
+       visible Skip/Next bar without clipping. */
+    --swatch-cap: 34dvh;
   }
 
   .card {
@@ -1226,18 +1244,29 @@ body {
     min-height: auto;
   }
 
+  /* Centred square so the 4x4 cells stay square (not stretched) and the
+     board leaves room for the Skip/Next bar below it. */
   .board {
-    flex: 1 1 0;
-    min-height: 100px;
+    /* No shrink: keep the square footprint even when the page overflows on a
+       very short phone (the stage scrolls instead of squishing cells into
+       rectangles). */
+    flex: 0 0 auto;
+    width: min(calc(100% - 24px), var(--swatch-cap));
+    aspect-ratio: 1 / 1;
+    margin-inline: auto;
+    min-height: 0;
   }
 
   .grid {
     height: 100%;
   }
 
+  /* Same square footprint as the board. Quad cells keep their 1/1
+     aspect-ratio, so capping the width shrinks both dimensions and the
+     swatches stay square. */
   .quad {
     flex: 0 0 auto;
-    width: calc(100% - 24px);
+    width: min(calc(100% - 24px), var(--swatch-cap));
     margin-inline: auto;
   }
 
@@ -1256,15 +1285,35 @@ body {
     min-height: auto;
   }
 
+  /* Slim, always-visible Skip / Next strip pinned under the swatches. */
   .actions {
     flex-shrink: 0;
     padding: 0 14px;
-    margin-top: 0;
+    margin-top: 2px;
+  }
+  .actions .btn {
+    min-height: 42px;
+    padding: 9px 20px;
+    font-size: 14px;
   }
 
+  /* Compact the mode toggle and scoreboard chips so they take less vertical
+     room and the chip row stays on one line on common phone widths. */
   .tabs {
     margin-top: 4px;
+    padding: 3px;
   }
+  .tab {
+    padding: 7px 18px;
+    min-height: 38px;
+    font-size: 13px;
+  }
+  .chip {
+    padding: 5px 10px;
+    font-size: 11px;
+    border-bottom-width: 3px;
+  }
+  .scoreboard { gap: 5px; }
 
   /* The finished share card sat too close to the Items | Characters tabs on
      phones and felt squished. Drop it down ~15% of the viewport so it has
@@ -1280,7 +1329,7 @@ body {
 
 /* Slightly larger axis headers on roomy phones / tablets. */
 @media (min-width: 700px) {
-  .board { grid-template-columns: 34px 1fr; grid-template-rows: 34px 1fr; }
+  .board { grid-template-columns: 34px minmax(0, 1fr); grid-template-rows: 34px minmax(0, 1fr); }
   .hdr { font-size: 14px; min-height: 26px; }
 }
 
