@@ -86,6 +86,10 @@ Y_ANCHOR = {
     # Roger Klotz - pin his lower waist to the bottom of the frame so he doesn't
     # float mid-box with the waistline clipped off.
     "IMG_0685.webp": 1.0,
+    # Lard Lad / Homer - isolated white-bg cutout. Centering left him floating
+    # mid-frame with white above and below; pin the bottom of his chest to the
+    # bottom of the 4:3 frame so all the slack stacks above his head instead.
+    "IMG_0618.webp": 1.0,
 }
 
 # After precrop + cover_crop strategy is selected, shift the centred crop
@@ -96,6 +100,9 @@ COVER_OFFSET = {
     # Keep more of the top so Anxiety's tall flame-shaped hair survives the
     # 4:3 trim after the side-tightening precrop.
     "IMG_0599.webp": {"y": 0.35},
+    # Dee Dee sits on the left of the wide source; the centred 4:3 trim clipped
+    # her far hair bun. Shift the window left so her full body stays in frame.
+    "IMG_0413.webp": {"x": 0.18},
 }
 
 # Pad the source with the sampled background colour before any other
@@ -193,7 +200,7 @@ ASSIGNMENTS = {
     "tommy-pickles-shirt":    "IMG_0407.jpeg",
     "chuckie-hair":           "IMG_0409.png",
     "doug-funnie-sweater":    "IMG_0410.webp",
-    "daria-jacket":           "IMG_0411.webp",
+    "daria-jacket":           "IMG_0717.webp",
     "dexter-gloves":          "IMG_0412.jpeg",
     "dee-dee-tutu":           "IMG_0413.webp",
     "eddy-shirt":             "IMG_0414.jpeg",
@@ -211,7 +218,7 @@ ASSIGNMENTS = {
     "johnny-quest-hair":      "IMG_0465.webp",
     "captain-planet-hair":    "IMG_0466.jpeg",
     "muriel-apron":           "IMG_0422.jpeg",
-    "mac-shirt":              "IMG_0424.jpeg",
+    "mac-shirt":              "IMG_0722.webp",
     "dora-shirt":             "IMG_0425.jpeg",
     "boots-stomach":          "IMG_0426.jpeg",
     "cosmo-mom-hair":         "IMG_0427.jpeg",
