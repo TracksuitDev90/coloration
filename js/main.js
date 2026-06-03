@@ -625,7 +625,14 @@ function renderQuadBoard(s) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'cell quad-cell';
-    btn.style.background = box.hex;
+    if (box.hex2) {
+      // Combo swatch: two colours split evenly down the middle. The player
+      // picks the swatch whose pair matches the answer.
+      btn.classList.add('quad-cell--combo');
+      btn.style.background = `linear-gradient(to right, ${box.hex} 0 50%, ${box.hex2} 50% 100%)`;
+    } else {
+      btn.style.background = box.hex;
+    }
     btn.dataset.index = box.index;
     btn.setAttribute('aria-label', `Color choice ${box.index + 1}`);
     btn.tabIndex = box.index === 0 ? 0 : -1;

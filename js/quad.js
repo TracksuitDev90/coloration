@@ -423,6 +423,85 @@ const PALETTES = {
     '#1A1A1A', // black
     '#7FB069', // soft green
   ],
+  // Diddy Kong's red star T-shirt. Distractors are blue, green, and white —
+  // three clearly distinct families (plus a neutral) bracketing the red.
+  'diddy-kong-shirt': [
+    '#F02828', // Diddy shirt red (correct, mirrors items.json)
+    '#4A90D9', // blue
+    '#6FB04A', // green
+    '#FFFFFF', // white
+  ],
+  // Yugi Muto's steel-blue Domino High jacket. Distractors are a ruby red, a
+  // soft teal green, and a steel gray — distinct families so no near-blue can
+  // be confused for the muted jacket blue.
+  'yugi-muto-jacket': [
+    '#347095', // Yugi jacket blue (correct, mirrors items.json)
+    '#9B111E', // ruby red
+    '#5FB8A6', // soft teal green
+    '#8A9299', // steel gray
+  ],
+  // Jazz Fenton's orange hair. Distractors are ghost white, a near-black
+  // purple, and a blonde yellow — distinct tones so no near-orange muddies
+  // the pick.
+  'jazz-fenton-hair': [
+    '#E98538', // Jazz hair orange (correct, mirrors items.json)
+    '#F8F8FF', // ghost white
+    '#1C1426', // black purple
+    '#E6C84F', // blonde yellow
+  ],
+  // Penny Sanchez's terracotta glasses. Distractors are olive green, a bright
+  // blue, and black — three clearly distinct families off the muted red-brown.
+  'penny-sanchez-glasses': [
+    '#C06D5E', // Penny glasses terracotta (correct, mirrors items.json)
+    '#808000', // olive green
+    '#1E90FF', // bright blue
+    '#1A1A1A', // black
+  ],
+  // Macie's blue-purple glasses. Distractors are a bright orange, bubblegum
+  // pink, and a very light greenish teal — distinct families bracketing the
+  // muted indigo.
+  'macie-glasses': [
+    '#55548F', // Macie glasses purple (correct, mirrors items.json)
+    '#FF7F11', // bright orange
+    '#FF6FAE', // bubblegum pink
+    '#B8EAD9', // very light greenish teal
+  ],
+  // Captain Planet's teal hair. Distractors are a soft red, a very very light
+  // green, and black — three clearly distinct tones off the saturated teal.
+  'captain-planet-hair': [
+    '#13787A', // Captain Planet teal (correct, mirrors items.json)
+    '#E66A6A', // soft red
+    '#DDF5DD', // very very light green
+    '#1A1A1A', // black
+  ],
+  // Stimpy's red body. Distractors are a soft red-pink, a soft green, and a
+  // beige. The soft pink is the warm near-family trap; the others are clearly
+  // different tones.
+  'stimpy-body': [
+    '#C11A0C', // Stimpy red (correct, mirrors items.json)
+    '#E68A95', // soft red pink
+    '#9CC79C', // soft green
+    '#E6D5B8', // beige
+  ],
+  // Doug Funnie's muted sweater-vest green. The second green is deliberately
+  // pushed well clear of the correct — a brighter grass green that's >6
+  // saturation steps higher and lighter, so it can't be mistaken for the
+  // muted vest. The other two distractors are a tan-gold and a muted blue.
+  'doug-funnie-sweater': [
+    '#57774D', // Doug sweater vest green (correct, mirrors items.json)
+    '#5FBF3A', // brighter, more-saturated grass green (clearly distinct)
+    '#C9913F', // tan-gold
+    '#4A7AA8', // muted blue
+  ],
+  // Inspector Gadget's lavender coat. Distractors are a leather brown, a deep
+  // crimson red, and a grass green — three clearly distinct families off the
+  // muted lavender.
+  'inspector-gadget-coat': [
+    '#ADA1C8', // Gadget coat lavender (correct, mirrors items.json)
+    '#8B5A2B', // leather brown
+    '#9E1B32', // deep crimson red
+    '#4A7C2E', // grass green
+  ],
 };
 
 const BOX_COUNT = 4;
@@ -518,9 +597,41 @@ function synthesizeShadeShifted(correctHsl, rng) {
   return { h: correctHsl.h, s: newS, l: newL };
 }
 
-export function buildQuad(correctHex, { seed = 0, palette, correctIndex: forcedIndex = null } = {}) {
-  const correct = hexToHsl(correctHex);
+// Combo swatches: each swatch shows two colours split down the middle and the
+// player picks the correct pair. The item supplies the correct pair plus a
+// fixed set of distractor pairs (see `combo` in items.json), so there's no
+// palette sampling — we place the correct combo at the requested index and
+// shuffle the remaining distractor pairs into the other slots. Each box gains
+// a `hex2` field; renderers draw a two-tone swatch when it's present.
+function buildComboQuad(combo, rng, forcedIndex) {
+  const correctPair = combo.correct.map(h => h.toUpperCase());
+  const distractorPairs = combo.distractors.map(p => p.map(h => h.toUpperCase()));
+
+  const correctIndex = Number.isInteger(forcedIndex) && forcedIndex >= 0 && forcedIndex < BOX_COUNT
+    ? forcedIndex
+    : Math.floor(rng() * BOX_COUNT);
+
+  const distractors = [...distractorPairs];
+  shuffle(distractors, rng);
+
+  const boxes = [];
+  let di = 0;
+  for (let i = 0; i < BOX_COUNT; i++) {
+    if (i === correctIndex) {
+      boxes.push({ index: i, hex: correctPair[0], hex2: correctPair[1], isCorrect: true });
+    } else {
+      const pair = distractors[di++];
+      boxes.push({ index: i, hex: pair[0], hex2: pair[1], isCorrect: false });
+    }
+  }
+
+  return { kind: 'quad', boxes, correctIndex, count: BOX_COUNT, combo: true };
+}
+
+export function buildQuad(correctHex, { seed = 0, palette, combo = null, correctIndex: forcedIndex = null } = {}) {
   const rng = mulberry32(seed * 2654435761 + 31);
+  if (combo) return buildComboQuad(combo, rng, forcedIndex);
+  const correct = hexToHsl(correctHex);
 
   // Themed palettes (e.g. Power Rangers) constrain distractors to a small
   // set of canonical colors. Fall back to the general cartoon palette if the

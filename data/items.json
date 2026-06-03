@@ -142,8 +142,9 @@
     "type": "item",
     "name": "Doug Funnie's sweater",
     "show": "Doug",
-    "color": { "hex": "#6FB073", "name": "Doug Sweater Green" },
+    "color": { "hex": "#57774D", "name": "Doug Sweater Green" },
     "image": "assets/photos/doug-funnie-sweater.png",
+    "quadPalette": "doug-funnie-sweater",
     "verified": true
   },
   {
@@ -217,8 +218,9 @@
     "type": "item",
     "name": "Stimpy's body",
     "show": "The Ren & Stimpy Show",
-    "color": { "hex": "#C84A52", "name": "Stimpy Red" },
+    "color": { "hex": "#C11A0C", "name": "Stimpy Red" },
     "image": "assets/photos/stimpy-body.png",
+    "quadPalette": "stimpy-body",
     "verified": true
   },
   {
@@ -323,6 +325,7 @@
     "show": "Inspector Gadget",
     "color": { "hex": "#ADA1C8", "name": "Gadget Coat Lavender" },
     "image": "assets/photos/inspector-gadget-coat.png",
+    "quadPalette": "inspector-gadget-coat",
     "verified": true
   },
   {
@@ -503,8 +506,9 @@
     "type": "item",
     "name": "Captain Planet's hair",
     "show": "Captain Planet and the Planeteers",
-    "color": { "hex": "#1F6E4F", "name": "Captain Planet Green" },
+    "color": { "hex": "#13787A", "name": "Captain Planet Teal" },
     "image": "assets/photos/captain-planet-hair.png",
+    "quadPalette": "captain-planet-hair",
     "verified": true
   },
   {
@@ -883,6 +887,73 @@
     "color": { "hex": "#B91F03", "name": "Gerald Jersey Red" },
     "image": "assets/photos/gerald-shirt.png",
     "quadPalette": "gerald-shirt",
+    "verified": true
+  },
+  {
+    "id": "diddy-kong-shirt",
+    "type": "item",
+    "name": "Diddy Kong's T-shirt",
+    "show": "Donkey Kong",
+    "color": { "hex": "#F02828", "name": "Diddy Shirt Red" },
+    "image": "assets/photos/diddy-kong-shirt.png",
+    "quadPalette": "diddy-kong-shirt",
+    "verified": true
+  },
+  {
+    "id": "yugi-muto-jacket",
+    "type": "item",
+    "name": "Yugi Muto's jacket",
+    "show": "Yu-Gi-Oh!",
+    "color": { "hex": "#347095", "name": "Yugi Jacket Blue" },
+    "image": "assets/photos/yugi-muto-jacket.png",
+    "quadPalette": "yugi-muto-jacket",
+    "verified": true
+  },
+  {
+    "id": "jazz-fenton-hair",
+    "type": "item",
+    "name": "Jazz Fenton's hair",
+    "show": "Danny Phantom",
+    "color": { "hex": "#E98538", "name": "Jazz Hair Orange" },
+    "image": "assets/photos/jazz-fenton-hair.png",
+    "quadPalette": "jazz-fenton-hair",
+    "verified": true
+  },
+  {
+    "id": "penny-sanchez-glasses",
+    "type": "item",
+    "name": "Penny Sanchez's glasses",
+    "show": "ChalkZone",
+    "color": { "hex": "#C06D5E", "name": "Penny Glasses Terracotta" },
+    "image": "assets/photos/penny-sanchez-glasses.png",
+    "quadPalette": "penny-sanchez-glasses",
+    "verified": true
+  },
+  {
+    "id": "macie-glasses",
+    "type": "item",
+    "name": "Macie's glasses",
+    "show": "As Told by Ginger",
+    "color": { "hex": "#55548F", "name": "Macie Glasses Purple" },
+    "image": "assets/photos/macie-glasses.png",
+    "quadPalette": "macie-glasses",
+    "verified": true
+  },
+  {
+    "id": "quagmire-shirt",
+    "type": "item",
+    "name": "Quagmire's shirt",
+    "show": "Family Guy",
+    "color": { "hex": "#E13C41", "name": "Quagmire Shirt Red" },
+    "image": "assets/photos/quagmire-shirt.png",
+    "combo": {
+      "correct": ["#E13C41", "#F6DC33"],
+      "distractors": [
+        ["#7C3FAF", "#FFFFFF"],
+        ["#2D6FBC", "#D4AF37"],
+        ["#3CB371", "#7B4F2C"]
+      ]
+    },
     "verified": true
   }
 ]

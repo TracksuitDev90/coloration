@@ -69,6 +69,11 @@ PRECROP = {
     # Y_ANCHOR of 1.0 below, his waistline sits flush at the bottom of the 4:3
     # frame instead of floating mid-box with the waist clipped off.
     "IMG_0685.webp": {"bottom": 0.40},
+    # Macie shares the frame with Ginger (red hair, on the left). The item is
+    # Macie's purple glasses, so peel back the left side to make Macie — who
+    # sits on the right — the clear subject. Kept moderate so we don't zoom in
+    # too tight on her face.
+    "IMG_0714.webp": {"left": 0.26},
 }
 
 # Vertical anchor for isolated-subject crops. 0.5 (default) centers the
@@ -323,6 +328,13 @@ ASSIGNMENTS = {
     "butters-jacket":           "IMG_0704.webp",
     "freakazoid-suit":          "IMG_0705.webp",
     "gerald-shirt":             "IMG_0699.webp",
+    # ---- Newest item additions ----
+    "diddy-kong-shirt":         "IMG_0706.jpeg",
+    "yugi-muto-jacket":         "IMG_0707.png",
+    "jazz-fenton-hair":         "IMG_0709.webp",
+    "penny-sanchez-glasses":    "IMG_0712.webp",
+    "macie-glasses":            "IMG_0714.webp",
+    "quagmire-shirt":           "IMG_0716.webp",
 }
 
 

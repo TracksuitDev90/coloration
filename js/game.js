@@ -119,6 +119,7 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
       state.board = buildQuad(c.color.hex, {
         seed: round.seed,
         palette: c.quadPalette,
+        combo: c.combo,
         correctIndex,
       });
     } else {
