@@ -2,9 +2,9 @@
 :root {
   /* Surfaces */
   /* Main page background. Darker shadows and the deepest framing surfaces
-     use --bg-deep (#000) so flat areas read as #202020 while wells and
+     use --bg-deep (#000) so flat areas read as #1a1a1a while wells and
      photo frames stay true black. */
-  --bg: #202020;
+  --bg: #1a1a1a;
   --bg-deep: #000;
   --bg-elev: #141821;
   --bg-elev-2: #1a2030;
@@ -1179,18 +1179,13 @@ body {
 }
 
 /* ---------- Breakpoints ---------- */
-/* Narrow phones: tighten topbar padding + chip size so the scoreboard wraps
-   gracefully under the title without looking cramped. */
+/* Narrow phones: tighten topbar padding. The title + scoreboard chips stay
+   on a single line beside each other (the title shrinks to make room) —
+   see the <=759px block below for the chip sizing and nowrap rules. */
 @media (max-width: 480px) {
   .topbar {
     padding: 11px 14px;
     gap: 8px 10px;
-  }
-  .scoreboard { width: 100%; }
-  .chip {
-    padding: 5px 10px;
-    font-size: 11px;
-    border-bottom-width: 3px;
   }
   .character-title { font-size: clamp(20px, 6vw, 26px); min-height: 1em; }
   .btn { padding: 12px 20px; min-height: 48px; }
@@ -1216,11 +1211,11 @@ body {
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 6px 0 max(8px, env(safe-area-inset-bottom));
-    gap: 6px;
+    gap: 5px;
     /* Square colour board/quad cap: shrinks the swatches (both dimensions, so
        they stay square) enough to leave room for the prompt and the always-
        visible Skip/Next bar without clipping. */
-    --swatch-cap: 34dvh;
+    --swatch-cap: 32dvh;
   }
 
   .card {
@@ -1230,7 +1225,7 @@ body {
   .photo {
     width: calc(100% - 24px);
     aspect-ratio: unset;
-    height: min(calc((100vw - 24px) * 3 / 4), 38dvh);
+    height: min(calc((100vw - 24px) * 3 / 4), 34dvh);
   }
 
   .photo img {
@@ -1308,12 +1303,23 @@ body {
     min-height: 38px;
     font-size: 13px;
   }
-  .chip {
-    padding: 5px 10px;
-    font-size: 11px;
-    border-bottom-width: 3px;
+  /* Keep the title + all five stat chips on a single line beside each other.
+     The title yields width first (flex-shrink) down to a 22px floor; the
+     scoreboard is locked so the chips never wrap or shrink off the line. */
+  .title {
+    font-size: clamp(22px, 5.2vw, 30px);
+    min-width: 0;
+    flex-shrink: 1;
   }
-  .scoreboard { gap: 5px; }
+  .title-blob { width: 1.35em; height: 1.35em; }
+  .title-text { min-width: 0; }
+  .chip {
+    padding: 5px 8px;
+    font-size: clamp(11px, 3vw, 12px);
+    border-bottom-width: 3px;
+    letter-spacing: 0;
+  }
+  .scoreboard { gap: 4px; flex-wrap: nowrap; flex-shrink: 0; }
 
   /* The finished share card sat too close to the Items | Characters tabs on
      phones and felt squished. Drop it down ~15% of the viewport so it has
