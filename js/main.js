@@ -120,6 +120,38 @@ const els = {
   stage: document.getElementById('stage'),
 };
 
+// On phones the caption sits on a single line above the photo. When a name is
+// too long to fit, shrink the font (down to a floor) until it fits rather than
+// letting it wrap or clip. No-op on wider viewports, where the caption flows
+// inside the desktop grid — clear any inline size so it never leaks across the
+// breakpoint.
+const CAPTION_MOBILE_MAX = 759;
+const CAPTION_MIN_PX = 12;
+function fitCaption() {
+  const el = els.name;
+  if (!el) return;
+  el.style.fontSize = '';
+  if (window.innerWidth > CAPTION_MOBILE_MAX) return;
+  // Start from the CSS-computed size, then step down until the single line fits.
+  let size = parseFloat(getComputedStyle(el).fontSize) || 22;
+  let guard = 64;
+  while (el.scrollWidth > el.clientWidth && size > CAPTION_MIN_PX && guard-- > 0) {
+    size -= 1;
+    el.style.fontSize = `${size}px`;
+  }
+}
+
+// Re-fit the caption on resize/orientation change (rAF-throttled so a drag
+// resize doesn't thrash layout).
+let captionFitRaf = 0;
+window.addEventListener('resize', () => {
+  if (captionFitRaf) return;
+  captionFitRaf = requestAnimationFrame(() => {
+    captionFitRaf = 0;
+    fitCaption();
+  });
+});
+
 // Each tab is a separate experience: items use the 4-swatch quad and
 // characters use the 5x5 shade grid. The two games run in parallel; switching
 // tabs swaps which one is being played without touching the other's progress.
@@ -264,6 +296,7 @@ async function tryRenderSharedView(s, allCharacters) {
   els.skip.hidden = true;
   els.next.hidden = true;
   els.name.textContent = '';
+  fitCaption();
   const wins = snap.rounds.filter(r => r.won).length;
   els.status.textContent = `Shared result · ${snap.date} · ${wins} of ${snap.rounds.length} solved`;
   els.stage?.classList.add('stage--finished');
@@ -529,6 +562,7 @@ function renderRound() {
   els.name.textContent = isItemRound(s)
     ? promptText(c)
     : 'What color are they?';
+  fitCaption();
 
   els.next.hidden = true;
   els.share.hidden = true;
@@ -832,6 +866,7 @@ function revealRound(announce = true, skipped = false) {
   const c = s.character;
   els.photoFrame.classList.add('revealed');
   els.name.textContent = revealText(c);
+  fitCaption();
 
   if (s.board.kind === 'quad') {
     const correctBtn = quadButton(s.board.correctIndex);
@@ -1195,6 +1230,7 @@ async function showFinished() {
   els.skip.hidden = true;
   els.status.textContent = '';
   els.name.innerHTML = '&nbsp;';
+  fitCaption();
   if (els.countdown) els.countdown.textContent = '';
   els.stage?.classList.add('stage--finished');
   updateChips();

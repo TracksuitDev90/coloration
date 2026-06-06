@@ -1225,18 +1225,27 @@ body {
   .photo {
     width: calc(100% - 24px);
     aspect-ratio: unset;
-    height: min(calc((100vw - 24px) * 3 / 4), 34dvh);
+    height: min(calc((100vw - 24px) * 3 / 4), 30dvh);
   }
 
   .photo img {
     object-position: center;
   }
 
+  /* Caption sits above the photo on phones (just under the tabs) and stays on
+     a single line. order:-1 lifts it above the card without touching the DOM,
+     so the desktop grid-area layout (>=760px) is unaffected. The JS shrink-to-
+     fit drops the font when a name would otherwise wrap; overflow:hidden keeps
+     it clipped to one line during that measurement. */
   .character-title {
+    order: -1;
     flex-shrink: 0;
     padding: 0 14px;
-    font-size: clamp(16px, 4.5vw, 22px);
+    font-size: clamp(14px, 4.5vw, 22px);
     min-height: auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-align: center;
   }
 
   /* Centred square so the 4x4 cells stay square (not stretched) and the
@@ -1256,13 +1265,22 @@ body {
     height: 100%;
   }
 
-  /* Same square footprint as the board. Quad cells keep their 1/1
-     aspect-ratio, so capping the width shrinks both dimensions and the
-     swatches stay square. */
+  /* Full-width 2x2 swatches: stretch the quad across the screen instead of the
+     small centred square, so the whole Items round fits on one screen. The
+     cells go slightly rectangular (wider than tall) — see the aspect-ratio
+     override below — which is shorter than a square block and saves the
+     vertical room. */
   .quad {
     flex: 0 0 auto;
-    width: min(calc(100% - 24px), var(--swatch-cap));
+    width: calc(100% - 24px);
     margin-inline: auto;
+  }
+
+  /* Slightly rectangular swatches (~1.35:1) on phones only. Overrides the base
+     .cell { aspect-ratio: 1/1 } for quad cells; the 4x4 character board uses
+     .grid .cell below and is unaffected. */
+  .quad .cell {
+    aspect-ratio: 1.35 / 1;
   }
 
   .grid .cell {
@@ -1299,8 +1317,8 @@ body {
     padding: 3px;
   }
   .tab {
-    padding: 7px 18px;
-    min-height: 38px;
+    padding: 6px 18px;
+    min-height: 34px;
     font-size: 13px;
   }
   /* Keep the title + all five stat chips on a single line beside each other.
