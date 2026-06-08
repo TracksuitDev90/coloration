@@ -90,6 +90,10 @@ Y_ANCHOR = {
     # mid-frame with white above and below; pin the bottom of his chest to the
     # bottom of the 4:3 frame so all the slack stacks above his head instead.
     "IMG_0618.webp": 1.0,
+    # Yugi - isolated white-bg cutout whose torso is cropped flush at the
+    # source's bottom edge. Centering left white space below him; pin the
+    # bottom of his jacket to the bottom of the 4:3 frame so it sits flush.
+    "IMG_0707.png": 1.0,
 }
 
 # After precrop + cover_crop strategy is selected, shift the centred crop
@@ -192,7 +196,7 @@ ASSIGNMENTS = {
     "magilla-gorilla-bowtie": "IMG_0397.png",
     "speed-racer-emblem":     "IMG_0399.jpeg",
     "penelope-pitstop-suit":  "IMG_0400.png",
-    "shaggy-shirt":           "IMG_0402.jpeg",
+    "shaggy-shirt":           "IMG_0750.webp",
     "velma-sweater":          "IMG_0403.png",
     "daphne-dress":           "IMG_0404.png",
     "arnolds-hat":            "IMG_0405.webp",
@@ -211,7 +215,7 @@ ASSIGNMENTS = {
     "heffer-hair":            "IMG_0419.jpeg",
     "reggie-shirt":           "IMG_0420.jpeg",
     # ---- Items (quad mode), 2000s cartoons ----
-    "nigel-hair":             "IMG_0456.jpeg",
+    "nigel-hair":             "IMG_0740.webp",
     "darkwing-mask":          "IMG_0458.png",
     "lois-shirt":             "IMG_0460.png",
     "fred-flintstone-shirt":  "IMG_0464.png",
@@ -253,6 +257,7 @@ ASSIGNMENTS = {
     "him":                    "IMG_0520.webp",
     "ice-king":               "IMG_0510.jpeg",
     "blue-ranger":            "IMG_0555.webp",
+    "yellow-ranger":          "IMG_0746.png",
     "genie":                  "IMG_0468.jpeg",
     "rocko":                  "IMG_0469.webp",
     "ursula":                 "IMG_0475.jpeg",
@@ -263,7 +268,7 @@ ASSIGNMENTS = {
     "jessica-rabbit-hair":      "IMG_0521.webp",
     "dr-facilier-vest":         "IMG_0474.webp",
     # ---- Newest additions ----
-    "mystery-machine-text":     "IMG_0477.jpeg",
+    "mystery-machine-text":     "IMG_0744.webp",
     "mojo-jojo":                "IMG_0479.webp",
     "piccolo-cape":             "IMG_0480.webp",
     "jake-the-dog":             "IMG_0481.png",
