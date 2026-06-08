@@ -519,6 +519,23 @@ const PALETTES = {
     '#FF6FAE', // bubblegum pink
     '#B8EAD9', // very light greenish teal
   ],
+  // Sharon's golden-blonde hair (Braceface). Distractors are a ginger red, a
+  // deep brown, and an electric blue — clearly distinct hair-and-non-hair
+  // tones so the player picks the right warm yellow.
+  'sharon-hair': [
+    '#FBDB5D', // Sharon blonde (correct, mirrors items.json)
+    '#C1440E', // ginger red
+    '#4A2C17', // deep brown
+    '#1E90FF', // electric blue
+  ],
+  // Pepper Ann's bright cyan pants. Distractors are a green, a pastel red, and
+  // a yellow — three distinct hue families off the saturated cyan.
+  'pepper-ann-pants': [
+    '#01CBEB', // Pepper Ann pants cyan (correct, mirrors items.json)
+    '#3CB371', // green
+    '#FF8C8C', // pastel red
+    '#F4D03F', // yellow
+  ],
   // Captain Planet's teal hair. Distractors are a soft red, a very very light
   // green, and black — three clearly distinct tones off the saturated teal.
   'captain-planet-hair': [

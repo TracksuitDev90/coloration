@@ -22,11 +22,11 @@ initTitleBlob();
 
 const COL_LABELS = ['A', 'B', 'C', 'D'];
 const GRID_SIZE = 4;
-// TEMP: daily limit lifted so the whole roster surfaces in a single day for
-// accuracy verification. Infinity makes the selection draw every item (capped
-// to the pool size), and the round chip already drops its "/ N" suffix when
-// the run is open-ended. Restore to 4 to re-enable the one-quartet-a-day cap.
-const ROUNDS_PER_DAY = Infinity;
+// One quartet of items per UTC day. The selection draws this many fresh
+// entries and the run ends after the fourth, so each player sees the same
+// four-item set per day. (During accuracy verification this was temporarily
+// lifted to Infinity to surface the whole roster in a single day.)
+const ROUNDS_PER_DAY = 4;
 
 // Characters mode is parked as "coming soon" while it's being reworked. The
 // tab still renders (so the nav reads "Items / Characters") but selecting it
@@ -39,17 +39,19 @@ const CHARACTERS_ENABLED = false;
 // Lock pins today's selection so refreshing the page returns the same trio
 // even after the IDs were already moved into the seen record.
 //
-// Namespace bumped v3 -> v4 to reset today's coloration after the roster grew
-// and the round-spacing rule changed: old daily locks would otherwise restore
-// the pre-reset selection for returning players. The bump clears every
-// browser's seen/lock so today regenerates fresh from the new pool. Lifetime
-// best-streak keeps its v3 key in game.js so the reset doesn't wipe records.
-const STORAGE_SEEN = { items: 'wcat:v4:seen:items', grid: 'wcat:v4:seen:grid' };
-const STORAGE_LOCK = { items: 'wcat:v4:daily-lock:items', grid: 'wcat:v4:daily-lock:grid' };
+// Namespace bumped v4 -> v5 to reset today's coloration now the one-quartet-
+// a-day cap is back on: while the limit was lifted the seen record swallowed
+// the whole roster and the daily lock pinned that open-ended run, so old keys
+// would otherwise leave returning players with an exhausted pool. The bump
+// clears every browser's seen/lock so today regenerates a fresh quartet from
+// the full pool. Lifetime best-streak keeps its v3 key in game.js so the reset
+// doesn't wipe records.
+const STORAGE_SEEN = { items: 'wcat:v5:seen:items', grid: 'wcat:v5:seen:grid' };
+const STORAGE_LOCK = { items: 'wcat:v5:daily-lock:items', grid: 'wcat:v5:daily-lock:grid' };
 // Last UTC date the player opened the app. Compared to today's key on init
 // to surface a "fresh puzzles" prompt and to detect midnight rollovers
 // while the page is backgrounded.
-const STORAGE_LAST_VISIT = 'wcat:v4:last-visit';
+const STORAGE_LAST_VISIT = 'wcat:v5:last-visit';
 
 function selectDailyFresh(pool, key, mode) {
   if (!pool.length) return [];
@@ -1375,41 +1377,5 @@ function toast(message) {
   toastTimer = setTimeout(() => {
     host.classList.remove('toast--visible');
   }, 3200);
-}
-
-// Hard reset: wipe every wcat:* key (seen records, daily locks, in-progress
-// run, best streak) and reload to a clean URL. Two-tap confirm so a stray
-// click can't nuke progress — the first tap arms it, a second within 3s
-// commits, otherwise it disarms.
-const hardResetBtn = document.getElementById('hard-reset-btn');
-if (hardResetBtn) {
-  const idleLabel = 'Hard reset';
-  const armedLabel = 'Tap again to confirm';
-  let armedTimer = null;
-  const disarm = () => {
-    hardResetBtn.textContent = idleLabel;
-    hardResetBtn.classList.remove('btn--hard-reset-armed');
-    armedTimer = null;
-  };
-  hardResetBtn.addEventListener('click', () => {
-    if (!armedTimer) {
-      hardResetBtn.textContent = armedLabel;
-      hardResetBtn.classList.add('btn--hard-reset-armed');
-      armedTimer = setTimeout(disarm, 3000);
-      return;
-    }
-    clearTimeout(armedTimer);
-    armedTimer = null;
-    try {
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('wcat:')) localStorage.removeItem(key);
-      }
-    } catch { /* private mode — nothing to clear */ }
-    const url = new URL(window.location.href);
-    url.search = '';
-    url.hash = '';
-    window.location.replace(url.toString());
-  });
 }
 
