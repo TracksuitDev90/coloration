@@ -47,6 +47,25 @@ const PALETTES = {
     '#FFFFFF', // white ranger
     '#F46DB7', // pink ranger
   ],
+  // Blue Ranger's suit. Distractors are the other canonical Ranger suit
+  // colours the player should weigh against the correct blue — red, black,
+  // and green. The hex values mirror the matching Ranger items / shared
+  // power-rangers palette so the swatches agree pixel-for-pixel.
+  'blue-ranger': [
+    '#0A71C1', // Blue Ranger blue (correct, mirrors items.json)
+    '#C8102E', // red ranger
+    '#0B0C0D', // black ranger
+    '#2C8335', // green ranger
+  ],
+  // Yellow Ranger's suit. Correct is the Ranger yellow; distractors are pink
+  // (Pink Ranger), a silver, and an orange so the board reads as a pick
+  // between four distinct suit-adjacent hues.
+  'yellow-ranger': [
+    '#FFCD00', // Yellow Ranger yellow (correct, mirrors items.json)
+    '#F46DB7', // pink ranger
+    '#C0C0C0', // silver
+    '#F39C12', // orange
+  ],
   'powerpuff': [
     '#E63946', // Blossom red bow
     '#4A90D9', // Bubbles blue
@@ -387,7 +406,7 @@ const PALETTES = {
     '#FA422B', // Buster shirt red (correct, mirrors items.json)
     '#89CFF0', // baby blue
     '#8DB600', // apple green
-    '#CC5500', // burnt orange
+    '#A84600', // burnt orange (darkened one shade)
   ],
   // Billy's blue T-shirt stripe. Distractors are red, daisy yellow, and a
   // grass green — three saturated hue families clearly apart from the blue.
@@ -438,7 +457,7 @@ const PALETTES = {
     '#D5331E', // Mystery Machine orange-red (correct, mirrors items.json)
     '#4A90D9', // blue
     '#2B2B2B', // soft black
-    '#F4D03F', // yellow
+    '#EEFF00', // neon bright yellow
   ],
   // Dora's pink T-shirt. Distractors are yellow, green, and a very light pink
   // near-miss kept far lighter than her saturated pink so it never reads as
@@ -518,12 +537,13 @@ const PALETTES = {
     '#E6D5B8', // beige
   ],
   // Doug Funnie's muted sweater-vest green. The second green is deliberately
-  // pushed well clear of the correct — a brighter grass green that's >6
-  // saturation steps higher and lighter, so it can't be mistaken for the
-  // muted vest. The other two distractors are a tan-gold and a muted blue.
+  // pushed well clear of the correct — a bright, blue-leaning spring green
+  // that's lighter, more saturated, and shoved toward teal so it only
+  // "barely" reads as green and can't be mistaken for the muted vest. The
+  // other two distractors are a tan-gold and a muted blue.
   'doug-funnie-sweater': [
     '#57774D', // Doug sweater vest green (correct, mirrors items.json)
-    '#5FBF3A', // brighter, more-saturated grass green (clearly distinct)
+    '#3AD99A', // bright blue-leaning spring green (barely green, clearly distinct)
     '#C9913F', // tan-gold
     '#4A7AA8', // muted blue
   ],
@@ -535,6 +555,24 @@ const PALETTES = {
     '#8B5A2B', // leather brown
     '#9E1B32', // deep crimson red
     '#4A7C2E', // grass green
+  ],
+  // Shaggy's muted sage-green shirt. Distractors are a yellow, a soft orange,
+  // and a deep purple — three clearly distinct families off the muted green.
+  'shaggy-shirt': [
+    '#759E7D', // Shaggy shirt green (correct, mirrors items.json)
+    '#F4D03F', // yellow
+    '#F2A65A', // soft orange
+    '#5B2C8C', // deep purple
+  ],
+  // Dexter's purple gloves. Distractors are a yellow, red, and black — three
+  // clearly distinct families off the purple. (The old default-palette board
+  // surfaced a teal near the purple; per request the teal is replaced by
+  // yellow and the set is pinned so it stays consistent.)
+  'dexter-gloves': [
+    '#83509D', // Dexter glove purple (correct, mirrors items.json)
+    '#F4D03F', // yellow
+    '#E63946', // red
+    '#1A1A1A', // black
   ],
 };
 

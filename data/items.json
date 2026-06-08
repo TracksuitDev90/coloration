@@ -77,8 +77,9 @@
     "type": "item",
     "name": "Shaggy's shirt",
     "show": "Scooby-Doo, Where Are You!",
-    "color": { "hex": "#8FC73E", "name": "Shaggy Shirt Green" },
+    "color": { "hex": "#759E7D", "name": "Shaggy Shirt Green" },
     "image": "assets/photos/shaggy-shirt.png",
+    "quadPalette": "shaggy-shirt",
     "verified": true
   },
   {
@@ -166,6 +167,7 @@
     "show": "Dexter's Laboratory",
     "color": { "hex": "#83509D", "name": "Dexter Glove Purple" },
     "image": "assets/photos/dexter-gloves.png",
+    "quadPalette": "dexter-gloves",
     "verified": true
   },
   {
@@ -595,7 +597,17 @@
     "show": "Mighty Morphin Power Rangers",
     "color": { "hex": "#0A71C1", "name": "Blue Ranger Blue" },
     "image": "assets/photos/blue-ranger.png",
-    "quadPalette": "power-rangers",
+    "quadPalette": "blue-ranger",
+    "verified": true
+  },
+  {
+    "id": "yellow-ranger",
+    "type": "item",
+    "name": "Ranger's suit",
+    "show": "Mighty Morphin Power Rangers",
+    "color": { "hex": "#FFCD00", "name": "Yellow Ranger Yellow" },
+    "image": "assets/photos/yellow-ranger.png",
+    "quadPalette": "yellow-ranger",
     "verified": true
   },
   {
