@@ -347,6 +347,10 @@ ASSIGNMENTS = {
     "penny-sanchez-glasses":    "IMG_0712.webp",
     "macie-glasses":            "IMG_0714.webp",
     "quagmire-shirt":           "IMG_0716.webp",
+    # ---- Newest item additions ----
+    "rocko-shirt":              "IMG_0752.png",
+    "sharon-hair":              "IMG_0754.webp",
+    "pepper-ann-pants":         "IMG_0756.webp",
 }
 
 

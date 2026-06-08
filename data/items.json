@@ -971,5 +971,42 @@
       ]
     },
     "verified": true
+  },
+  {
+    "id": "rocko-shirt",
+    "type": "item",
+    "name": "Rocko's T-shirt",
+    "show": "Rocko's Modern Life",
+    "color": { "hex": "#88BDD5", "name": "Rocko Shirt Blue" },
+    "image": "assets/photos/rocko-shirt.png",
+    "combo": {
+      "correct": ["#88BDD5", "#9D7DAB"],
+      "distractors": [
+        ["#3CB371", "#F4D03F"],
+        ["#E13C41", "#FFFFFF"],
+        ["#1F3A93", "#FFFFFF"]
+      ]
+    },
+    "verified": true
+  },
+  {
+    "id": "sharon-hair",
+    "type": "item",
+    "name": "Sharon's hair",
+    "show": "Braceface",
+    "color": { "hex": "#FBDB5D", "name": "Sharon Hair Blonde" },
+    "image": "assets/photos/sharon-hair.png",
+    "quadPalette": "sharon-hair",
+    "verified": true
+  },
+  {
+    "id": "pepper-ann-pants",
+    "type": "item",
+    "name": "Pepper Ann's pants",
+    "show": "Pepper Ann",
+    "color": { "hex": "#01CBEB", "name": "Pepper Ann Pants Blue" },
+    "image": "assets/photos/pepper-ann-pants.png",
+    "quadPalette": "pepper-ann-pants",
+    "verified": true
   }
 ]
