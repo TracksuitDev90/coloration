@@ -1209,6 +1209,44 @@ body {
   transform: translate(-50%, 0);
 }
 
+/* ---------- New-day banner ---------- */
+/* Surfaced once when the UTC day rolls over while the page is open: a
+   persistent strip prompting the player to refresh into the new puzzles.
+   Unlike the toast it stays interactive (it carries the Refresh button), so
+   it sits above the toast and never auto-dismisses. */
+.new-day-banner {
+  position: fixed;
+  left: 50%;
+  top: calc(env(safe-area-inset-top) + 16px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(92vw, 480px);
+  padding: 12px 14px 12px 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    var(--bg-elev);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: var(--shadow-pop), var(--ring);
+  z-index: 60;
+}
+
+.new-day-banner__msg {
+  flex: 1;
+  min-width: 0;
+}
+
+.new-day-banner .btn {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  min-height: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation: none; }
   .toast { transition: opacity 200ms ease; transform: translate(-50%, 0); }

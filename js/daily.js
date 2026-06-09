@@ -68,63 +68,75 @@ function shuffleSeeded(items, seed) {
   return out;
 }
 
-// Picks `count` entries the player hasn't seen yet, deterministically
-// seeded by date so refreshing the page returns the same trio. When the
-// unseen pool runs short of `count`, the caller is told the roster wrapped
-// so it can clear its seen-record before the next call.
+// Global daily rotation. The schedule is a pure function of the roster, the
+// UTC date, and the mode — no localStorage, no per-browser state — so every
+// player worldwide is surfaced the exact same entries on the same day.
 //
-// After the seeded shuffle the picks are re-interleaved by hue family so the
-// daily order never strings together a run of same-family colors (e.g. four
-// pinks in a row). The interleave is deterministic per date+mode.
+// How it works: the roster (sorted by id so JSON order doesn't matter) is
+// dealt out as an endless stream of whole-roster permutations — cycle 0 is
+// one seeded shuffle of every entry, cycle 1 the next, and so on. Day N takes
+// stream positions [N*count, N*count + count). Because each cycle is a full
+// permutation, nothing repeats until every entry in the pool has been
+// surfaced, and the stream never runs dry.
 //
-// Returns { picks, exhausted } — `exhausted` is true when the unseen pool
-// could not satisfy the request and we fell back to the full pool.
-export function pickFreshDailyCharacters(allCharacters, dateKey, seenIds, mode = '', count = CHARACTERS_PER_DAY) {
-  if (!allCharacters?.length) return { picks: [], exhausted: false };
-  const seen = seenIds instanceof Set ? seenIds : new Set(seenIds || []);
-  const unseen = allCharacters.filter(c => !seen.has(c.id));
-  const exhausted = unseen.length < count;
-  const pool = exhausted ? allCharacters : unseen;
-  const ordered = shuffleSeeded(pool, hashString(`fresh:${mode}:${dateKey}`));
-  const sliced = pickSpacedSlice(ordered, Math.min(count, pool.length));
-  const spread = spreadByHueFamily(sliced, hashString(`spread:${mode}:${dateKey}`));
-  return { picks: spread, exhausted };
+// Each cycle's permutation is re-rolled (by bumping a salt in the seed) until
+// its head avoids the previous cycle's tail, so a day's slice that straddles
+// a cycle boundary can't contain the same entry twice, and an entry shown at
+// the very end of one pass doesn't bounce right back at the start of the next.
+//
+// The day's picks are then re-interleaved by hue family so the order never
+// strings together same-family colors (e.g. two pinks back to back). That
+// reorder stays inside the day's slice, so the no-repeat guarantee holds.
+const CYCLE_OVERLAP_GUARD = CHARACTERS_PER_DAY * 2;
+
+export function dailyRotation(pool, dateKey, mode = '', count = CHARACTERS_PER_DAY) {
+  if (!pool?.length) return [];
+  const sorted = pool.slice().sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const n = sorted.length;
+  const take = Math.min(count, n);
+  const spreadSeed = hashString(`spread:${mode}:${dateKey}`);
+  if (take >= n) return spreadByHueFamily(sorted, spreadSeed);
+
+  const dayIndex = Math.max(0, daysBetween(ROTATION_EPOCH, dateKey));
+  const start = dayIndex * take;
+
+  // Cycle permutations are chained (each one's seed search depends on the
+  // previous one's tail), so build them in order from cycle 0. A year of
+  // four-a-day rotation over a 100-entry roster is ~15 shuffles — trivial.
+  const perms = [];
+  const permFor = (cycle) => {
+    while (perms.length <= cycle) {
+      perms.push(cyclePermutation(sorted, mode, perms.length, perms[perms.length - 1] || null));
+    }
+    return perms[cycle];
+  };
+
+  const picks = [];
+  for (let pos = start; picks.length < take; pos++) {
+    const cand = permFor(Math.floor(pos / n))[pos % n];
+    // The overlap guard makes duplicates impossible for healthy pool sizes;
+    // this check only matters for tiny pools where the guard had to give up.
+    if (!picks.some(p => p.id === cand.id)) picks.push(cand);
+  }
+  return spreadByHueFamily(picks, spreadSeed);
 }
 
-// Choose `count` entries from the already-shuffled pool while holding any one
-// hue family to at most ceil(count/2) of the slice. That ceiling is the most
-// a family can occupy and still admit an ordering with no two same-family
-// rounds adjacent — so spreadByHueFamily below can always separate the colors
-// and the day never surfaces the same general color back to back. (Two oranges
-// in a four-round day is fine; two oranges *in a row* is not.)
-//
-// Entries are taken in the pool's existing seeded, unseen-first order so the
-// daily rotation and determinism are untouched; the cap only defers a third
-// same-family entry to a later day. If the pool is too homogeneous to fill the
-// slice under the cap, the deferred overflow tops it up (still in seeded order)
-// so the slice always reaches `count` and coverage of the roster is preserved.
-function pickSpacedSlice(ordered, count) {
-  if (ordered.length <= count) return ordered.slice();
-  const cap = Math.ceil(count / 2);
-  const famCount = new Map();
-  const picked = [];
-  const deferred = [];
-  for (const c of ordered) {
-    if (picked.length >= count) break;
-    const fam = hueFamily(c.color?.hex);
-    const n = famCount.get(fam) ?? 0;
-    if (n < cap) {
-      picked.push(c);
-      famCount.set(fam, n + 1);
-    } else {
-      deferred.push(c);
+// Seeded whole-roster shuffle for one rotation cycle. Bumps a salt until the
+// permutation's first `guard` entries are disjoint from the previous cycle's
+// last `guard` entries (see dailyRotation). The salt walk is deterministic,
+// so every player lands on the same permutation. Capped so a pathologically
+// small pool can't loop forever — at that size some adjacency is unavoidable.
+function cyclePermutation(sorted, mode, cycle, prevPerm) {
+  const guard = Math.min(CYCLE_OVERLAP_GUARD, Math.floor(sorted.length / 2));
+  const tail = prevPerm && guard > 0
+    ? new Set(prevPerm.slice(prevPerm.length - guard).map(c => c.id))
+    : null;
+  for (let salt = 0; ; salt++) {
+    const perm = shuffleSeeded(sorted, hashString(`rotation:${mode}:${cycle}:${salt}`));
+    if (!tail || salt >= 32 || !perm.slice(0, guard).some(c => tail.has(c.id))) {
+      return perm;
     }
   }
-  for (const c of deferred) {
-    if (picked.length >= count) break;
-    picked.push(c);
-  }
-  return picked;
 }
 
 // Round-robin draws one character at a time from each hue-family bucket so
