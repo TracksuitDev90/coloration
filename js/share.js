@@ -58,7 +58,7 @@ const PIXEL_RATIO = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
 // per round) so a long marathon still produces a clean share image.
 const COMPACT_GRID_THRESHOLD = 8;
 
-export async function renderShareCard(snapshot) {
+export async function renderShareCard(snapshot, { dayStreak = 0 } = {}) {
   // Fresh random main colour theme per render so shared cards vary.
   pickRandomTheme();
   // Preload all portraits up-front so the draw path can pull them
@@ -98,7 +98,7 @@ export async function renderShareCard(snapshot) {
     drawPortraitRows(ctx, snapshot, playedRounds, bodyLeft, bodyTop, bodyRight, bodyBottom);
   }
 
-  drawFooter(ctx);
+  drawFooter(ctx, dayStreak);
   return canvas;
 }
 
@@ -106,7 +106,7 @@ export async function renderShareCard(snapshot) {
 // 1080x1080 footprint as the single-mode card — the body splits into two
 // columns (Items on the left, Characters on the right) so the player can
 // brag about both runs in one image without the card changing size.
-export async function renderCombinedShareCard({ items, grid }) {
+export async function renderCombinedShareCard({ items, grid }, { dayStreak = 0 } = {}) {
   // Fresh random main colour theme per render so shared cards vary.
   pickRandomTheme();
   // Preload portraits from both runs up-front; the in-game cache usually
@@ -153,7 +153,7 @@ export async function renderCombinedShareCard({ items, grid }) {
     bodyBottom - bodyTop,
   );
 
-  drawFooter(ctx);
+  drawFooter(ctx, dayStreak);
   return canvas;
 }
 
@@ -452,10 +452,19 @@ function drawScorePill(ctx, text, right, top) {
   ctx.fillText(text, x + padX, y + padY);
 }
 
-function drawFooter(ctx) {
+function drawFooter(ctx, dayStreak = 0) {
   // Thin top rule.
   ctx.fillStyle = 'rgba(255,255,255,0.06)';
   ctx.fillRect(PADDING, H - 96, W - PADDING * 2, 1);
+
+  // Day streak on the footer's left — the spot the old wordmark vacated.
+  // Only from 2 days up: "1-day streak" reads as an apology, not a brag.
+  if (dayStreak >= 2) {
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = theme.accent;
+    ctx.font = '800 24px "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText(`🔥 ${dayStreak}-day streak`, PADDING, H - 70 + 14);
+  }
 
   // Result legend — three small boxes with labels. The "Coloration / Play
   // today's puzzle" wordmark used to sit on the left here but was removed;
@@ -776,10 +785,10 @@ async function preloadAllPortraits(characters) {
   await Promise.all(characters.map(c => preloadPortrait(c.imageSrc)));
 }
 
-export async function shareCanvas(canvas, snapshot) {
+export async function shareCanvas(canvas, snapshot, { dayStreak = 0 } = {}) {
   const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
   if (!blob) throw new Error('Could not encode share image');
-  const filename = `colorguesser-${snapshot.date}.png`;
+  const filename = `coloration-${snapshot.date}.png`;
 
   if (navigator.canShare) {
     try {
@@ -787,8 +796,8 @@ export async function shareCanvas(canvas, snapshot) {
       if (navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: 'Color Guesser',
-          text: shareText(snapshot),
+          title: 'Coloration',
+          text: shareText(snapshot, { dayStreak }),
         });
         return { kind: 'shared' };
       }
@@ -815,7 +824,10 @@ export async function shareCanvas(canvas, snapshot) {
 // Long runs collapse into a single emoji ribbon so the share text stays
 // scannable in a tweet or DM.
 const TEXT_COMPACT_THRESHOLD = 12;
-export function shareText(snapshot) {
+export function shareText(snapshot, { dayStreak = 0 } = {}) {
+  // A 2+ day run is worth bragging about alongside the result; a single day
+  // would just read as filler, so it stays off the text.
+  const streakLine = dayStreak >= 2 ? [`🔥 ${dayStreak}-day streak`] : [];
   const played = snapshot.rounds
     .map((r, i) => ({ r, i }))
     .filter(({ r }) => r.won || r.lost || r.skipped);
@@ -828,14 +840,17 @@ export function shareText(snapshot) {
     }).join('');
     const wins = played.filter(({ r }) => r.won).length;
     return [
-      'Color Guesser',
+      'Coloration',
       `${wins} / ${played.length}`,
+      ...streakLine,
       '',
       ribbon,
     ].join('\n');
   }
 
   const lines = played.map(({ r, i }) => {
+    // Guard against a snapshot whose rounds outnumber its characters (e.g. a
+    // hand-crafted share payload) rather than printing "undefined:".
     const c = snapshot.characters[i];
     const max = maxGuessesFor(c);
     const cells = Array.from({ length: max }, (_, k) => {
@@ -843,16 +858,18 @@ export function shareText(snapshot) {
       if (!g) return '⬛';
       return g.correct ? '🟩' : '🟥';
     }).join('');
-    return `${c.name}: ${cells}`;
+    return `${c?.name ?? '???'}: ${cells}`;
   });
-  return ['Color Guesser', '', ...lines].join('\n');
+  return ['Coloration', ...streakLine, '', ...lines].join('\n');
 }
 
 // Combined text share — emoji ribbon for both modes side by side. Used when
 // the player has finished both items and characters on the same day so the
 // "Copy emoji" affordance reflects what's actually on screen.
-export function combinedShareText({ items, grid }) {
-  const lines = ['Color Guesser', ''];
+export function combinedShareText({ items, grid }, { dayStreak = 0 } = {}) {
+  const lines = ['Coloration'];
+  if (dayStreak >= 2) lines.push(`🔥 ${dayStreak}-day streak`);
+  lines.push('');
   for (const snap of [items, grid]) {
     if (!snap) continue;
     const played = snap.rounds
@@ -862,6 +879,8 @@ export function combinedShareText({ items, grid }) {
     const label = snap.mode === 'items' ? 'Items' : 'Characters';
     lines.push(`${label}: ${wins} / ${played.length}`);
     for (const { r, i } of played) {
+      // Same guard as shareText: never print "undefined:" for a snapshot
+      // whose rounds outnumber its characters.
       const c = snap.characters[i];
       const max = maxGuessesFor(c);
       const cells = Array.from({ length: max }, (_, k) => {
@@ -869,7 +888,7 @@ export function combinedShareText({ items, grid }) {
         if (!g) return '⬛';
         return g.correct ? '🟩' : '🟥';
       }).join('');
-      lines.push(`  ${c.name}: ${cells}`);
+      lines.push(`  ${c?.name ?? '???'}: ${cells}`);
     }
     lines.push('');
   }
@@ -952,6 +971,12 @@ function b64UrlDecode(b64) {
 // Build a synthetic snapshot from a decoded share payload + the loaded
 // character list. Used by the read-only share view.
 export function snapshotFromPayload(payload, allCharacters) {
+  // The payload is attacker-controlled (anyone can mint a ?s= link), so a
+  // JSON blob that parses but isn't the expected shape must come back as
+  // null — main.js then falls through to today's puzzle with a toast. If it
+  // threw instead, init()'s catch would show the load-error screen, and the
+  // Retry button (which re-reads the same URL) would loop on it forever.
+  if (!isValidSharePayload(payload)) return null;
   const byId = new Map(allCharacters.map(c => [c.id, c]));
   const characters = payload.c.map(id => byId.get(id)).filter(Boolean);
   if (characters.length !== payload.c.length) return null;
@@ -979,4 +1004,16 @@ export function snapshotFromPayload(payload, allCharacters) {
     finished: true,
     revealed: true,
   };
+}
+
+function isValidSharePayload(payload) {
+  if (!payload || typeof payload !== 'object') return false;
+  if (typeof payload.d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(payload.d)) return false;
+  if (payload.m != null && payload.m !== 'items' && payload.m !== 'grid') return false;
+  if (!Array.isArray(payload.c) || payload.c.length === 0) return false;
+  if (!payload.c.every(id => typeof id === 'string')) return false;
+  if (!Array.isArray(payload.r) || payload.r.length !== payload.c.length) return false;
+  return payload.r.every(r =>
+    r && typeof r === 'object' &&
+    (r.g == null || (Array.isArray(r.g) && r.g.every(g => g && typeof g === 'object'))));
 }

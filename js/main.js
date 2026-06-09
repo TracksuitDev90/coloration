@@ -3,9 +3,11 @@ import { createDailyGame, onceStorageWriteFailed } from './game.js';
 import {
   getUtcDateKey,
   dailyRotation,
+  daysBetween,
   msUntilNextUtcDay,
   formatCountdown,
 } from './daily.js';
+import { hexToHsl } from './grid.js';
 import {
   renderShareCard,
   renderCombinedShareCard,
@@ -43,6 +45,36 @@ const CHARACTERS_ENABLED = false;
 // daily.js), so every player worldwide gets the exact same items/characters
 // with no per-browser seen/lock records to drift out of sync.
 const STORAGE_LAST_VISIT = 'wcat:v5:last-visit';
+
+// Consecutive-day completion streak — separate from the in-round guess
+// streak. A day counts once the daily run is finished (every round won,
+// lost, or skipped); missing a day resets the count. Shown on the end
+// screen and stamped into the share text/card.
+const STORAGE_DAY_STREAK = 'wcat:v1:dayStreak';
+
+function recordDayCompletion(key) {
+  const raw = readJson(STORAGE_DAY_STREAK);
+  const prev = raw && typeof raw === 'object' ? raw : {};
+  if (prev.lastDate === key) {
+    // Already counted today (reload / tab switch on the finished screen).
+    return { streak: prev.streak || 0, best: prev.best || 0 };
+  }
+  const consecutive = typeof prev.lastDate === 'string' &&
+    daysBetween(prev.lastDate, key) === 1;
+  const streak = consecutive ? (prev.streak || 0) + 1 : 1;
+  const best = Math.max(streak, prev.best || 0);
+  writeJson(STORAGE_DAY_STREAK, { streak, lastDate: key, best });
+  return { streak, best };
+}
+
+// Streak as recorded for today — 0 unless today's run has been completed.
+// Used by the share buttons, which only exist on the finished screen.
+function completedDayStreak() {
+  const rec = readJson(STORAGE_DAY_STREAK);
+  return rec && typeof rec === 'object' && rec.lastDate === dateKey
+    ? (rec.streak || 0)
+    : 0;
+}
 
 function readJson(key) {
   try {
@@ -92,7 +124,7 @@ const els = {
 // inside the desktop grid — clear any inline size so it never leaks across the
 // breakpoint.
 const CAPTION_MOBILE_MAX = 759;
-const CAPTION_MIN_PX = 12;
+const CAPTION_MIN_PX = 13;
 function fitCaption() {
   const el = els.name;
   if (!el) return;
@@ -365,6 +397,24 @@ function crossfadeStage(apply) {
   });
 }
 
+// Photo fallback chain: optimized WebP → original PNG → generated initials
+// placeholder. Each onerror advances one step, so a character whose WebP
+// *and* PNG both fail still shows the placeholder card instead of a blank
+// frame. The placeholder is a data URI, so the chain always terminates.
+function attachImageFallbackChain(img, c) {
+  const chain = [c.imageFallback, c.imagePlaceholder]
+    .filter(src => src && src !== c.imageSrc);
+  img.onerror = () => {
+    const next = chain.shift();
+    if (!next || img.src === next) {
+      img.onerror = null;
+      return;
+    }
+    if (!chain.length) img.onerror = null;
+    img.src = next;
+  };
+}
+
 // Cheap idle-time prefetch so the next character's photo is in the HTTP
 // cache by the time the player taps "Next round".
 function prefetchImage(src) {
@@ -504,15 +554,7 @@ function renderRound() {
   // image's bytes arrive — items and characters are separate experiences.
   if (els.img.getAttribute('src') !== c.imageSrc) {
     els.img.removeAttribute('src');
-    // Fall back to the original PNG if the optimized WebP can't be decoded
-    // (very old browsers). Guard against a loop: only swap once, and never
-    // for the placeholder data URI.
-    els.img.onerror = () => {
-      els.img.onerror = null;
-      if (c.imageFallback && els.img.src !== c.imageFallback) {
-        els.img.src = c.imageFallback;
-      }
-    };
+    attachImageFallbackChain(els.img, c);
     els.img.src = c.imageSrc;
   }
   // Feed the blurred backdrop the same bytes as the foreground (the browser
@@ -520,12 +562,7 @@ function renderRound() {
   // with a soft copy of itself instead of dead bars.
   if (els.imgBg && els.imgBg.getAttribute('src') !== c.imageSrc) {
     els.imgBg.removeAttribute('src');
-    els.imgBg.onerror = () => {
-      els.imgBg.onerror = null;
-      if (c.imageFallback && els.imgBg.src !== c.imageFallback) {
-        els.imgBg.src = c.imageFallback;
-      }
-    };
+    attachImageFallbackChain(els.imgBg, c);
     els.imgBg.src = c.imageSrc;
   }
   els.img.alt = isItemRound(s)
@@ -828,16 +865,39 @@ function submitGuess(pos, btn) {
   const result = game.guess(pos);
   if (result.kind === 'correct') {
     btn.classList.add('cell--correct');
+    navigator.vibrate?.([15, 30, 40]);
     revealRound();
   } else if (result.kind === 'wrong') {
     btn.classList.add('cell--wrong');
+    navigator.vibrate?.(60);
     flash(els.photoFrame, 'shake');
     els.status.textContent = `Not quite. ${result.guessesLeft} guess${result.guessesLeft === 1 ? '' : 'es'} left.`;
     if (result.guessesLeft === 1) applyNegativeHint();
     updateChips();
   } else if (result.kind === 'exhausted') {
     btn.classList.add('cell--wrong');
+    navigator.vibrate?.([60, 40, 60]);
     revealRound();
+  }
+}
+
+// The reveal ✓ and its outer ring are white — invisible on a near-white
+// swatch. Flip them dark when the winning color is light. HSL lightness is
+// close enough to perceived luminance for this binary call.
+function isLightSwatch(board) {
+  let hexes;
+  if (board.kind === 'quad') {
+    const box = board.boxes[board.correctIndex];
+    // Combo swatches are two-tone; the check sits across both halves, so only
+    // go dark when both halves are light.
+    hexes = box.hex2 ? [box.hex, box.hex2] : [box.hex];
+  } else {
+    hexes = [board.cells[board.correctRow][board.correctCol].hex];
+  }
+  try {
+    return hexes.every(hex => hexToHsl(hex).l > 75);
+  } catch {
+    return false;
   }
 }
 
@@ -848,9 +908,11 @@ function revealRound(announce = true, skipped = false) {
   els.name.textContent = revealText(c);
   fitCaption();
 
+  const correctIsLight = isLightSwatch(s.board);
   if (s.board.kind === 'quad') {
     const correctBtn = quadButton(s.board.correctIndex);
     correctBtn?.classList.add('cell--correct');
+    correctBtn?.classList.toggle('cell--correct-dark', correctIsLight);
     for (const btn of els.quad.querySelectorAll('.quad-cell')) {
       if (!btn.classList.contains('cell--wrong') && !btn.classList.contains('cell--correct')) {
         btn.classList.add('cell--dim');
@@ -859,6 +921,7 @@ function revealRound(announce = true, skipped = false) {
   } else {
     const correctBtn = cellButton(s.board.correctRow, s.board.correctCol);
     correctBtn?.classList.add('cell--correct');
+    correctBtn?.classList.toggle('cell--correct-dark', correctIsLight);
     for (const btn of els.grid.querySelectorAll('.cell')) {
       if (!btn.classList.contains('cell--wrong') && !btn.classList.contains('cell--correct')) {
         btn.classList.add('cell--dim');
@@ -876,7 +939,11 @@ function revealRound(announce = true, skipped = false) {
     }
   } else {
     els.next.hidden = false;
-    els.next.focus();
+    // Only steal focus for a live reveal. This path also runs when a
+    // refresh restores an already-revealed round (announce=false), where
+    // yanking focus on page load would scroll the page and surprise
+    // keyboard/screen-reader users.
+    if (announce) els.next.focus();
     if (announce) setTimeout(triggerSwipeHint, 800);
   }
   updateChips();
@@ -1126,7 +1193,9 @@ if (els.share) {
     if (!cachedShareCanvas) return;
     els.share.disabled = true;
     try {
-      const result = await shareCanvas(cachedShareCanvas, game.snapshot());
+      const result = await shareCanvas(cachedShareCanvas, game.snapshot(), {
+        dayStreak: completedDayStreak(),
+      });
       if (result?.kind === 'shared') {
         toast('Shared!');
       } else if (result?.kind === 'downloaded') {
@@ -1142,19 +1211,19 @@ if (els.share) {
 
 if (els.link) {
   els.link.addEventListener('click', async () => {
-    const itemsSnap = games.items?.snapshot();
-    const gridSnap = games.grid?.snapshot();
-    const both = !!(itemsSnap?.finished && gridSnap?.finished);
+    // The link payload encodes only the current mode (see shareLinkUrl), so
+    // the accompanying text must describe the same single-mode result — a
+    // combined both-modes blurb on a one-mode link would oversell what the
+    // recipient actually opens. If the payload ever learns to carry both
+    // modes, switch this back to combinedShareText alongside it.
     const url = shareLinkUrl(game.snapshot());
-    const text = both
-      ? combinedShareText({ items: itemsSnap, grid: gridSnap })
-      : shareText(game.snapshot());
+    const text = shareText(game.snapshot(), { dayStreak: completedDayStreak() });
     // Prefer the native share sheet so users on phones can fling the URL
     // straight into Messages / Mail. Falls back to clipboard otherwise.
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Color Guesser',
+          title: 'Coloration',
           text,
           url,
         });
@@ -1179,9 +1248,10 @@ if (els.copyResult) {
     // mirror that in the emoji text so the copy matches what the user sees.
     const itemsSnap = games.items?.snapshot();
     const gridSnap = games.grid?.snapshot();
+    const dayStreak = completedDayStreak();
     const text = (itemsSnap?.finished && gridSnap?.finished)
-      ? combinedShareText({ items: itemsSnap, grid: gridSnap })
-      : shareText(game.snapshot());
+      ? combinedShareText({ items: itemsSnap, grid: gridSnap }, { dayStreak })
+      : shareText(game.snapshot(), { dayStreak });
     try {
       await navigator.clipboard.writeText(text);
       flashLabel(els.copyResult, 'Copied!', 'Copy emoji');
@@ -1199,21 +1269,34 @@ function flashLabel(btn, hot, cool) {
 async function showFinished() {
   cancelFinishedAnnounce();
   const s = game.snapshot();
-  // End-of-game is intentionally minimal: just the social share card and the
-  // three action buttons. The `stage--finished` class collapses the layout so
-  // the photo, title, board, status, countdown, and primary action rows take
-  // no space — the share slot and share actions are the only things on screen.
+  // End-of-game is intentionally minimal: the social share card, the three
+  // action buttons, and the day-streak line in the status slot. The
+  // `stage--finished` class collapses the layout so the photo, title, board,
+  // countdown, and primary action rows take no space.
   els.characterCard.hidden = true;
   els.board.hidden = true;
   els.quad.hidden = true;
   els.next.hidden = true;
   els.skip.hidden = true;
-  els.status.textContent = '';
   els.name.innerHTML = '&nbsp;';
   fitCaption();
   if (els.countdown) els.countdown.textContent = '';
   els.stage?.classList.add('stage--finished');
   updateChips();
+
+  // Finishing the run banks today toward the consecutive-day streak (idempotent
+  // on reloads/tab switches). The status line survives the stage--finished
+  // collapse, so it doubles as the streak callout above the share card.
+  const dayStreak = recordDayCompletion(dateKey);
+  els.status.textContent = '';
+  if (dayStreak.streak >= 1) {
+    const streakEl = document.createElement('span');
+    streakEl.className = 'day-streak';
+    streakEl.textContent = dayStreak.best > dayStreak.streak
+      ? `🔥 ${dayStreak.streak}-day streak — best ${dayStreak.best}`
+      : `🔥 ${dayStreak.streak}-day streak`;
+    els.status.appendChild(streakEl);
+  }
 
   els.shareSlot.hidden = false;
   els.shareActions.hidden = false;
@@ -1234,8 +1317,8 @@ async function showFinished() {
   const gridSnap = games.grid?.snapshot();
   const bothDone = !!(itemsSnap?.finished && gridSnap?.finished);
   const newCanvas = bothDone
-    ? await renderCombinedShareCard({ items: itemsSnap, grid: gridSnap })
-    : await renderShareCard(s);
+    ? await renderCombinedShareCard({ items: itemsSnap, grid: gridSnap }, { dayStreak: dayStreak.streak })
+    : await renderShareCard(s, { dayStreak: dayStreak.streak });
   newCanvas.classList.add('share-card');
   cachedShareCanvas = newCanvas;
   els.shareSlot.replaceChildren(newCanvas);
@@ -1332,9 +1415,10 @@ function armDateRolloverReload() {
   };
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('focus', checkRollover);
-  // Periodic safety net for the "tab left open all night" path — once a
-  // minute is enough resolution to catch midnight without burning cycles.
-  const intervalId = setInterval(checkRollover, 60_000);
+  // Periodic safety net for the "tab left open all night" path — every 15s
+  // keeps the new-day banner near-immediate for a mid-game player without
+  // burning meaningful cycles.
+  const intervalId = setInterval(checkRollover, 15_000);
   dateRolloverTeardown = () => {
     document.removeEventListener('visibilitychange', onVisibility);
     window.removeEventListener('focus', checkRollover);
@@ -1376,8 +1460,20 @@ function toast(message) {
   host.textContent = message;
   host.classList.add('toast--visible');
   if (toastTimer) clearTimeout(toastTimer);
+  // Longer messages stay up longer — 3.2s is fine for "Shared!" but rushes
+  // a full sentence, especially for screen-reader users following along.
+  const duration = Math.min(7000, Math.max(3200, 1800 + message.length * 45));
   toastTimer = setTimeout(() => {
     host.classList.remove('toast--visible');
-  }, 3200);
+  }, duration);
+}
+
+// Offline support: the manifest advertises a standalone (installable) app, so
+// a service worker has to back that up — without one, launching from the home
+// screen with no network is a permanent error page. Registration is fire-and-
+// forget; the game runs identically when SW is unavailable (http://, very old
+// browsers). Relative path keeps it working under the GitHub Pages subpath.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => { /* non-fatal */ });
 }
 

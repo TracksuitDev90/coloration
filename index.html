@@ -4,24 +4,24 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#1a1a1a" />
+  <meta name="color-scheme" content="dark" />
   <title>Coloration</title>
   <meta name="description" content="A daily color guessing game. Pick the right shade for an iconic character or item — fresh puzzles every day at UTC midnight." />
-  <!-- TODO(release): replace TODO_PRODUCTION_URL with the canonical site URL. -->
-  <link rel="canonical" href="TODO_PRODUCTION_URL/" />
+  <link rel="canonical" href="https://tracksuitdev90.github.io/coloration/" />
 
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Coloration" />
   <meta property="og:title" content="Coloration" />
   <meta property="og:description" content="A daily color guessing game. Pick the right shade for an iconic character or item." />
-  <meta property="og:url" content="TODO_PRODUCTION_URL/" />
-  <meta property="og:image" content="TODO_PRODUCTION_URL/assets/og-image.png" />
+  <meta property="og:url" content="https://tracksuitdev90.github.io/coloration/" />
+  <meta property="og:image" content="https://tracksuitdev90.github.io/coloration/assets/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Coloration" />
   <meta name="twitter:description" content="A daily color guessing game. Pick the right shade for an iconic character or item." />
-  <meta name="twitter:image" content="TODO_PRODUCTION_URL/assets/og-image.png" />
+  <meta name="twitter:image" content="https://tracksuitdev90.github.io/coloration/assets/og-image.png" />
 
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
@@ -54,8 +54,21 @@
       var el = document.getElementById('loader-intro');
       if (!el) return;
       var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (reduce) {
-        // No sweep for reduced-motion users — drop straight into the game.
+      // The sweep is a once-a-day greeting, not a toll booth: returning
+      // visitors on the same UTC day drop straight into the game. The key
+      // mirrors js/daily.js getUtcDateKey and reads the last-visit record
+      // main.js writes after each load (so it reflects the *previous* visit).
+      var seenToday = false;
+      try {
+        var now = new Date();
+        var todayKey = now.getUTCFullYear() + '-' +
+          String(now.getUTCMonth() + 1).padStart(2, '0') + '-' +
+          String(now.getUTCDate()).padStart(2, '0');
+        seenToday = JSON.parse(localStorage.getItem('wcat:v5:last-visit')) === todayKey;
+      } catch (e) { /* private mode / corrupt value — just play the intro */ }
+      if (reduce || seenToday) {
+        // No sweep for reduced-motion users or repeat same-day visits —
+        // drop straight into the game.
         if (el.parentNode) el.parentNode.removeChild(el);
         return;
       }
@@ -87,8 +100,17 @@
       // never traps pointer events.
       var REVEAL_AT = 2540;
       var REMOVE_AT = 3000;
-      setTimeout(function () { el.classList.add('loader-intro--out'); }, REVEAL_AT);
-      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, REMOVE_AT);
+      var revealTimer = setTimeout(function () { el.classList.add('loader-intro--out'); }, REVEAL_AT);
+      var removeTimer = setTimeout(finish, REMOVE_AT);
+      function finish() {
+        clearTimeout(revealTimer);
+        clearTimeout(removeTimer);
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }
+      // A tap or keypress skips the rest of the show immediately — the intro
+      // should never stand between an impatient player and the puzzle.
+      el.addEventListener('pointerdown', finish);
+      window.addEventListener('keydown', finish, { once: true });
     })();
   </script>
 
@@ -174,6 +196,7 @@
 
   <footer class="bottombar">
     <small>A new puzzle every day. Resets at UTC midnight.</small>
+    <small class="bottombar-legal">A fan-made puzzle. Character imagery &copy; its respective owners.</small>
   </footer>
 
   <script type="module" src="js/main.js"></script>

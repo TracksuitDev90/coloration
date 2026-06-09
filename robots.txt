@@ -1,5 +1,4 @@
 User-agent: *
 Allow: /
 
-# TODO(release): replace TODO_PRODUCTION_URL with the canonical site URL.
-Sitemap: TODO_PRODUCTION_URL/sitemap.xml
+Sitemap: https://tracksuitdev90.github.io/coloration/sitemap.xml
