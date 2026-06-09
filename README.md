@@ -1,15 +1,13 @@
 # Coloration
 
-A daily color guessing game. Each day, the puzzle presents an iconic character or item and asks you to pick the right shade — one round at a time, the same set for everyone, reset at UTC midnight.
+A daily color guessing game. Each day, the puzzle presents four iconic items and asks you to pick the right shade — one round at a time, the same set for everyone, reset at UTC midnight.
 
 ## How to play
 
-Two modes share the same daily run:
+- **Items** (live) — a 2×2 swatch picker. Four distinct colors, one guess per round, four rounds per day.
+- **Characters** (coming soon) — a 4×4 shade grid centered on the right hue. The tab is visible but parked while the mode is reworked (`CHARACTERS_ENABLED` in `js/main.js`).
 
-- **Items** — a 2×2 swatch picker. Four distinct colors, one guess.
-- **Characters** — a 4×4 shade grid centered on the right hue. Three guesses; after the second miss, the row and column containing the answer light up.
-
-Each mode allows up to **2 skips per day**. A skipped round is neutral against your streak but still uses the slot. Progress persists per UTC day in `localStorage`, so refreshing mid-puzzle picks up where you left off; the next UTC midnight starts a fresh set.
+Each day allows up to **2 skips**. A skipped round is neutral against your in-day streak but still uses the slot. Progress persists per UTC day in `localStorage`, so refreshing mid-puzzle picks up where you left off; the next UTC midnight starts a fresh set. Finishing the run on consecutive days builds a **day streak**, shown on the end screen and stamped into shares.
 
 When the run ends, you can save a share image, copy a result-link (a read-only view of your day), or copy an emoji-style summary.
 
@@ -27,14 +25,16 @@ Any static server works (`npx serve`, `caddy file-server`, etc.).
 ## Project layout
 
 ```
-index.html             - shell + meta
+index.html             - shell + meta + intro loader
 styles.css             - all styles
+sw.js                  - minimal service worker (offline shell + photo cache)
 manifest.webmanifest   - PWA metadata
 robots.txt             - crawler directives
+sitemap.xml            - single-URL sitemap
 js/
-  main.js              - entry, init, UI wiring
+  main.js              - entry, init, UI wiring, day streak
   game.js              - daily-game state + persistence
-  characters.js        - loads data/characters.json + data/items.json
+  characters.js        - loads + validates data/characters.json and data/items.json
   daily.js             - UTC date keying + daily character selection
   grid.js, quad.js     - board generators
   share.js             - share-card canvas + emoji/url encoding
@@ -48,9 +48,9 @@ assets/
 scripts/               - one-off Python/Node tooling for asset prep
 ```
 
-## Before deploying
+## Deploying
 
-A handful of release values are placeholders. Search for `TODO_PRODUCTION_URL` and swap in the canonical site URL (in `index.html` `<head>`, `robots.txt`).
+The canonical URL (`https://tracksuitdev90.github.io/coloration`) is baked into `index.html`, `robots.txt`, and `sitemap.xml` — update all three if the site moves. The service worker is network-first for code and data, so deploys are picked up on the next online load; bump `VERSION` in `sw.js` to force-drop cached photos.
 
 ## License
 
