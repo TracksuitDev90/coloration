@@ -399,27 +399,28 @@ function drawBackground(ctx) {
 function drawHeader(ctx, snapshot) {
   ctx.textBaseline = 'top';
 
-  // Brand kicker — small label above the title.
+  // Title first — matches the page wordmark (Cormorant Garamond 700), bumped
+  // +3px so the brand reads a touch larger at the top of the card.
+  ctx.fillStyle = TEXT_PRIMARY;
+  ctx.font = '700 83px "Cormorant Garamond", "Iowan Old Style", Georgia, "Times New Roman", serif';
+  ctx.fillText('Coloration', PADDING, 48);
+
+  // Date underneath the wordmark.
   ctx.fillStyle = theme.accent;
   ctx.font = '800 22px "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('DAILY · ' + snapshot.date, PADDING, 64);
+  ctx.fillText('DAILY · ' + snapshot.date, PADDING, 148);
 
-  // Title — matches the page wordmark (Cormorant Garamond 700).
-  ctx.fillStyle = TEXT_PRIMARY;
-  ctx.font = '700 80px "Cormorant Garamond", "Iowan Old Style", Georgia, "Times New Roman", serif';
-  ctx.fillText('Coloration', PADDING, 100);
-
-  // Subhead — mode + scoreline.
+  // Subhead — mode + scoreline, beneath the date.
   const wonCount = snapshot.rounds.filter(r => r.won).length;
   const total = snapshot.rounds.length;
   const modeLabel = snapshot.mode === 'items' ? 'Item Colors' : 'Character Colors';
 
   ctx.fillStyle = TEXT_SECONDARY;
   ctx.font = '600 28px "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(modeLabel, PADDING, 188);
+  ctx.fillText(modeLabel, PADDING, 180);
 
-  // Score pill on the right.
-  drawScorePill(ctx, `${wonCount} / ${total}`, W - PADDING, 178);
+  // Score pill on the right, aligned with the date/mode block.
+  drawScorePill(ctx, `${wonCount} / ${total}`, W - PADDING, 168);
 }
 
 function drawScorePill(ctx, text, right, top) {
@@ -515,22 +516,30 @@ function drawRow(ctx, snapshot, i, x, y, w, h) {
   ctx.restore();
 
   const innerPad = 14;
-  const portraitSize = (h - innerPad * 2) * PORTRAIT_SCALE;
-  const portraitX = x + innerPad;
-  const portraitY = y + (h - portraitSize) / 2;
+  // Portrait fills the row's full height with only a hair of inset, so it
+  // nestles flush into the row's left corners (top-left + bottom-left) instead
+  // of floating centred with a gap on every side.
+  const portraitPad = 6;
+  const portraitSize = h - portraitPad * 2;
+  const portraitX = x + portraitPad;
+  const portraitY = y + portraitPad;
+  // Round the portrait so its left corners follow the row's rounded corners
+  // (row radius 22 minus the inset).
+  const portraitRadius = 22 - portraitPad;
 
-  drawPortraitFrame(ctx, portraitX, portraitY, portraitSize);
-  drawPortrait(ctx, character, portraitX, portraitY, portraitSize);
-
-  // Name + color swatch column.
-  const textX = portraitX + portraitSize + 20;
-  const nameMax = w - portraitSize - innerPad * 3 - boxesAreaWidth(h, max) - 24;
-  drawCharacterMeta(ctx, character, textX, y, h, nameMax);
+  drawPortraitFrame(ctx, portraitX, portraitY, portraitSize, portraitRadius);
+  drawPortrait(ctx, character, portraitX, portraitY, portraitSize, portraitRadius);
 
   // Boxes area on the right.
   const boxesArea = boxesAreaWidth(h, max);
   const boxesRight = x + w - innerPad;
   const boxesLeft = boxesRight - boxesArea;
+
+  // Name column fills the gap between the (now larger) portrait and the boxes.
+  const textX = portraitX + portraitSize + 20;
+  const nameMax = boxesLeft - textX - 12;
+  drawCharacterMeta(ctx, character, textX, y, h, nameMax);
+
   drawGuessRow(ctx, round, max, boxesLeft, y, boxesArea, h);
 }
 
@@ -575,18 +584,18 @@ function drawGuessRow(ctx, round, max, x, rowY, areaW, rowH) {
   }
 }
 
-function drawPortraitFrame(ctx, x, y, size) {
+function drawPortraitFrame(ctx, x, y, size, radius = 16) {
   ctx.save();
   ctx.fillStyle = '#0e1218';
   ctx.strokeStyle = '#2a3140';
   ctx.lineWidth = 1.5;
-  roundRect(ctx, x, y, size, size, 16);
+  roundRect(ctx, x, y, size, size, radius);
   ctx.fill();
   ctx.stroke();
   ctx.restore();
 }
 
-function drawPortrait(ctx, character, x, y, size) {
+function drawPortrait(ctx, character, x, y, size, radius = 16) {
   // Synchronous: relies on the in-game preload so the image is already in the
   // browser cache by the time the share card renders. Falls back to initials
   // if the image isn't ready or fails to decode.
@@ -594,7 +603,7 @@ function drawPortrait(ctx, character, x, y, size) {
   const cached = portraitCache.get(src);
   if (cached && cached.complete && cached.naturalWidth > 0) {
     ctx.save();
-    roundRect(ctx, x, y, size, size, 16);
+    roundRect(ctx, x, y, size, size, radius);
     ctx.clip();
     const ratio = cached.width / cached.height;
     let dw, dh;
@@ -621,11 +630,15 @@ function drawGrayscaleImage(ctx, img, dx, dy, dw, dh) {
     return;
   }
   // Fallback for engines without Canvas2D filter support: paint to an
-  // offscreen canvas, walk the pixels, write back.
+  // offscreen canvas, walk the pixels, write back. Size the offscreen buffer
+  // at device resolution (×PIXEL_RATIO) — sizing it in CSS px downscaled the
+  // source then upscaled it back into the retina canvas, which read as blocky.
   const off = document.createElement('canvas');
-  off.width = Math.max(1, Math.ceil(dw));
-  off.height = Math.max(1, Math.ceil(dh));
+  off.width = Math.max(1, Math.ceil(dw * PIXEL_RATIO));
+  off.height = Math.max(1, Math.ceil(dh * PIXEL_RATIO));
   const offCtx = off.getContext('2d');
+  offCtx.imageSmoothingEnabled = true;
+  offCtx.imageSmoothingQuality = 'high';
   offCtx.drawImage(img, 0, 0, off.width, off.height);
   try {
     const data = offCtx.getImageData(0, 0, off.width, off.height);

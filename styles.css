@@ -1064,6 +1064,35 @@ body {
 .share-actions[hidden] { display: none; }
 .share-actions .btn { flex: 1 1 140px; min-width: 140px; max-width: 220px; }
 
+/* Finished-state save buttons borrow the scoreboard chip look: a chunky
+   bottom border + a distinct accent colour per action, so the save row reads
+   like the menu pills (Streak / Skips …). Scoped to .share-actions so the
+   in-game Skip / Next buttons keep their flat treatment. The per-id rules
+   carry an id, so they outrank the .btn--primary / .btn--ghost classes. */
+.share-actions .btn {
+  border-width: 1.25px;
+  border-bottom-width: 3.5px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.share-actions #share-btn {
+  background: #0f2a25;
+  color: #5eecd5;
+  border-color: #2dbc9e;
+}
+.share-actions #share-btn:hover { background: #143a32; }
+.share-actions #link-btn {
+  background: #1a1730;
+  color: #c8a2ff;
+  border-color: #8b5cf6;
+}
+.share-actions #link-btn:hover { background: #241d44; }
+.share-actions #copy-btn {
+  background: #2a1a0f;
+  color: #ffb36b;
+  border-color: #e0872e;
+}
+.share-actions #copy-btn:hover { background: #3a2415; }
+
 /* ---------- Footer ---------- */
 .bottombar {
   text-align: center;
@@ -1353,11 +1382,14 @@ body {
   }
   .scoreboard { gap: 4px; flex-wrap: nowrap; flex-shrink: 0; }
 
-  /* The finished share card sat too close to the Items | Characters tabs on
-     phones and felt squished. Drop it down ~15% of the viewport so it has
-     clear breathing room below the tab row. */
+  /* Thin the save buttons' chunky bottom slightly on phones, matching .chip. */
+  .share-actions .btn { border-bottom-width: 3px; }
+
+  /* Sit the finished share card just below the Items | Characters tabs with a
+     small breathing gap — a large drop left it stranded in the middle of the
+     screen and pushed the save buttons against the bottom edge. */
   .share {
-    margin-top: 15vh;
+    margin-top: clamp(10px, 2.5vw, 20px);
   }
 
   .bottombar {
