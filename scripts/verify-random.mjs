@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  pickFreshDailyCharacters,
+  dailyRotation,
   hueFamily,
   positionForRound,
   ROTATION_EPOCH,
@@ -46,42 +46,49 @@ function dayKey(offset) {
   return getUtcDateKey(new Date(EPOCH_MS + offset * 86400000));
 }
 
-// 1) Pool exhaustion — picks never repeat until the unseen pool is drained,
-//    and once drained `exhausted` flips so the caller knows to reset.
-section('pool exhaustion (no repeats until drained)', () => {
+// 1) Global rotation — the schedule is a pure function of (pool, date, mode),
+//    so two independent computations agree (every player worldwide sees the
+//    same picks), and nothing repeats until the whole roster has surfaced.
+section('global rotation (deterministic, no repeats until drained)', () => {
+  const ROUNDS = 4; // mirrors ROUNDS_PER_DAY in main.js
   for (const [pool, mode] of [[characterPool, 'grid'], [itemPool, 'items']]) {
-    const seen = new Set();
-    let exhaustedAt = -1;
-    let totalPicks = 0;
-    // Walk far enough to wrap the roster at least once. The test requests a
-    // full-roster slice to exercise the no-repeat-until-drained invariant
-    // independently of the production ROUNDS_PER_DAY value.
-    for (let day = 0; day < pool.length * 2 + 5; day++) {
-      const { picks, exhausted } = pickFreshDailyCharacters(
-        pool,
-        dayKey(day),
-        seen,
-        mode,
-        pool.length,
+    // Walk three full passes of the roster plus change.
+    const days = Math.ceil(pool.length / ROUNDS) * 3 + 5;
+    let seen = new Set();
+    let drains = 0;
+    for (let day = 0; day < days; day++) {
+      const picks = dailyRotation(pool, dayKey(day), mode, ROUNDS);
+      const again = dailyRotation(pool, dayKey(day), mode, ROUNDS);
+      assert.deepEqual(
+        again.map(p => p.id),
+        picks.map(p => p.id),
+        `${mode}: day ${day} not deterministic across independent calls`,
       );
-      if (exhausted && exhaustedAt < 0) exhaustedAt = day;
-      // Within a single draw, every pick must be unseen until we hit
-      // exhaustion. After exhaustion the roster wraps and reuse is allowed.
-      if (!exhausted) {
-        for (const p of picks) {
-          assert.ok(!seen.has(p.id), `${mode}: repeat before exhaustion (${p.id} on day ${day})`);
-          seen.add(p.id);
-        }
+      assert.equal(picks.length, Math.min(ROUNDS, pool.length), `${mode}: day ${day} short slice`);
+      assert.equal(
+        new Set(picks.map(p => p.id)).size,
+        picks.length,
+        `${mode}: day ${day} duplicate within the daily slice`,
+      );
+      const unseen = picks.filter(p => !seen.has(p.id));
+      const repeats = picks.filter(p => seen.has(p.id));
+      if (seen.size + unseen.length === pool.length) {
+        // This slice drains the current pass. When the roster size isn't a
+        // multiple of ROUNDS the same slice also opens the next pass — those
+        // extras are the only legal "repeats", and they seed the new record.
+        drains++;
+        seen = new Set(repeats.map(p => p.id));
       } else {
+        assert.equal(
+          repeats.length,
+          0,
+          `${mode}: day ${day} repeated ${repeats.map(p => p.id).join(',')} before the roster drained`,
+        );
         for (const p of picks) seen.add(p.id);
       }
-      totalPicks += picks.length;
     }
-    assert.ok(exhaustedAt > 0, `${mode}: never reported exhausted`);
-    // Distinct IDs seen must equal the full pool size — proves every entry
-    // surfaced at least once before any forced repeat.
-    assert.equal(seen.size, pool.length, `${mode}: seen.size ${seen.size} != pool ${pool.length}`);
-    console.log(`      ${mode}: ${pool.length} entries, exhausted on day ${exhaustedAt}, total picks ${totalPicks}`);
+    assert.ok(drains >= 3, `${mode}: expected >=3 full passes, saw ${drains}`);
+    console.log(`      ${mode}: ${pool.length} entries, ${drains} full passes over ${days} days, no early repeats`);
   }
 });
 
@@ -103,13 +110,7 @@ section('no same-family runs across consecutive picks', () => {
     const allowedRun = others === 0 ? pool.length : Math.ceil(dominant / (others + 1));
     let maxRun = 0;
     for (let trial = 0; trial < 100; trial++) {
-      const { picks } = pickFreshDailyCharacters(
-        pool,
-        dayKey(trial * 31 + 7),
-        new Set(),
-        mode,
-        pool.length,
-      );
+      const picks = dailyRotation(pool, dayKey(trial * 31 + 7), mode, pool.length);
       let run = 1;
       let runFam = hueFamily(picks[0]?.color?.hex);
       for (let i = 1; i < picks.length; i++) {

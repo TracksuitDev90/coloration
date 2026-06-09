@@ -2,6 +2,8 @@
 4:3 frame.
 
 For each source photo we:
+  0. Strip any baked-in letterbox/pillarbox bars so black framing never
+     reaches the shipped photo (and never poisons the bg sampling below).
   1. Detect the character's bounding box (transparency or color delta from
      a corner-sampled background).
   2. Clip out any printed watermark band on the bottom of the gallery prints.
@@ -17,7 +19,7 @@ The originals stay in assets/ for the record.
 """
 
 from pathlib import Path
-from PIL import Image, ImageChops, ImageFilter
+from PIL import Image, ImageChops, ImageFilter, ImageStat
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = REPO_ROOT / "assets"
@@ -74,6 +76,16 @@ PRECROP = {
     # sits on the right — the clear subject. Kept moderate so we don't zoom in
     # too tight on her face.
     "IMG_0714.webp": {"left": 0.26},
+    # Jessica Rabbit's left ~quarter is a near-black curtain. The strict
+    # letterbox trim only takes the truly-black sliver at the edge, so the
+    # dead curtain band would survive into the 4:3 frame and read as a black
+    # bar; cut it explicitly so she fills the frame. (Applied after the
+    # automatic bar trim, so the fraction is of the trimmed width.)
+    "IMG_0521.webp": {"left": 0.27},
+    # The Mask source is framed inside a CRT-TV effect with rounded corners.
+    # trim_black_bars removes the straight bars; this inset clears the
+    # leftover black corner arcs.
+    "IMG_0507.jpeg": {"top": 0.03, "bottom": 0.03, "left": 0.03, "right": 0.03},
 }
 
 # Vertical anchor for isolated-subject crops. 0.5 (default) centers the
@@ -150,6 +162,16 @@ FORCE_COVER = {
     # Aang - sky/wing scene; after the side precrop it's still a full-bleed
     # scene, so cover_crop trims to 4:3 around his head + arrow.
     "IMG_0683.webp",  # Aang's arrow
+    # Full-bleed scene shots whose corners are dark enough that the
+    # solid-background heuristic kicked in and padded them out to 4:3 with a
+    # near-black sampled "background" — which shipped as baked-in letterbox
+    # bars. Force the cover path so (after trim_black_bars strips any bars in
+    # the source itself) the content fills the entire 4:3 frame.
+    "IMG_0754.webp",  # Sharon (Braceface) - dim classroom scene
+    "IMG_0523.webp",  # Pink Panther - dark cinema scene
+    "IMG_0507.jpeg",  # The Mask - scene inside a CRT-TV frame
+    "IMG_0458.png",   # Darkwing Duck - night scene with letterboxed top
+    "IMG_0521.webp",  # Jessica Rabbit - dark stage curtain scene
 }
 
 # Per-image override of the bbox padding fraction used by isolated_subject.
@@ -352,6 +374,56 @@ ASSIGNMENTS = {
     "sharon-hair":              "IMG_0754.webp",
     "pepper-ann-pants":         "IMG_0756.webp",
 }
+
+
+# Letterbox/pillarbox detection. A baked-in bar is a run of rows/columns at
+# the frame edge that is uniformly near-black: the line's mean stays below
+# BAR_MEAN_MAX and no channel of any pixel exceeds BAR_PIXEL_MAX. The pixel
+# ceiling keeps legitimately dark scene content (night skies, dim rooms with
+# visible detail) out of the trim — those always carry pixels well above it.
+BAR_MEAN_MAX = 18
+BAR_PIXEL_MAX = 60
+# Never trim more than this fraction of a dimension from one side, so a
+# mostly-black artwork can't be eaten by the heuristic.
+BAR_LIMIT_FRAC = 0.35
+
+
+def _is_bar_line(rgb, box):
+    strip = rgb.crop(box)
+    if max(hi for _, hi in strip.getextrema()) >= BAR_PIXEL_MAX:
+        return False
+    return sum(ImageStat.Stat(strip).mean) / 3 < BAR_MEAN_MAX
+
+
+def trim_black_bars(img):
+    """Strip baked-in letterbox/pillarbox bars from the frame edges.
+
+    Without this, sources captured with black bars poison the rest of the
+    pipeline twice over: the bars survive a cover-crop into the shipped 4:3
+    photo, and the corner-sampled "background" comes out black, which flips
+    the isolated-subject path into padding the frame with even more black.
+    Columns are scanned inside the letterbox-trimmed rows so a combined
+    letterbox+pillarbox frame is fully removed.
+    """
+    rgb = img if img.mode == "RGB" else img.convert("RGB")
+    w, h = rgb.size
+    max_x = int(w * BAR_LIMIT_FRAC)
+    max_y = int(h * BAR_LIMIT_FRAC)
+    top = 0
+    while top < max_y and _is_bar_line(rgb, (0, top, w, top + 1)):
+        top += 1
+    bottom = 0
+    while bottom < max_y and _is_bar_line(rgb, (0, h - 1 - bottom, w, h - bottom)):
+        bottom += 1
+    left = 0
+    while left < max_x and _is_bar_line(rgb, (left, top, left + 1, h - bottom)):
+        left += 1
+    right = 0
+    while right < max_x and _is_bar_line(rgb, (w - 1 - right, top, w - right, h - bottom)):
+        right += 1
+    if not (top or bottom or left or right):
+        return img
+    return img.crop((left, top, w - right, h - bottom))
 
 
 def sample_bg(img):
@@ -600,6 +672,7 @@ def process(src_path, dst_path):
         has_alpha = "A" in img.getbands() or "transparency" in img.info
         img = img.convert("RGBA" if has_alpha else "RGB")
 
+    img = trim_black_bars(img)
     img = expand_with_bg(img, src_path.name)
     img = precrop(img, src_path.name)
 

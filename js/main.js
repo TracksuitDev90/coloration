@@ -2,7 +2,7 @@ import { loadCharacters } from './characters.js';
 import { createDailyGame, onceStorageWriteFailed } from './game.js';
 import {
   getUtcDateKey,
-  pickFreshDailyCharacters,
+  dailyRotation,
   msUntilNextUtcDay,
   formatCountdown,
 } from './daily.js';
@@ -34,52 +34,15 @@ const ROUNDS_PER_DAY = 4;
 // Flip back to true to restore the full two-mode game.
 const CHARACTERS_ENABLED = false;
 
-// Per-mode localStorage keys. Seen records the IDs the player has already
-// encountered (so each day surfaces fresh entries until the roster wraps).
-// Lock pins today's selection so refreshing the page returns the same trio
-// even after the IDs were already moved into the seen record.
-//
-// Namespace bumped v4 -> v5 to reset today's coloration now the one-quartet-
-// a-day cap is back on: while the limit was lifted the seen record swallowed
-// the whole roster and the daily lock pinned that open-ended run, so old keys
-// would otherwise leave returning players with an exhausted pool. The bump
-// clears every browser's seen/lock so today regenerates a fresh quartet from
-// the full pool. Lifetime best-streak keeps its v3 key in game.js so the reset
-// doesn't wipe records.
-const STORAGE_SEEN = { items: 'wcat:v5:seen:items', grid: 'wcat:v5:seen:grid' };
-const STORAGE_LOCK = { items: 'wcat:v5:daily-lock:items', grid: 'wcat:v5:daily-lock:grid' };
 // Last UTC date the player opened the app. Compared to today's key on init
 // to surface a "fresh puzzles" prompt and to detect midnight rollovers
 // while the page is backgrounded.
+//
+// This is the only selection-related localStorage left: the daily roster
+// itself is now a pure function of the UTC date (see dailyRotation in
+// daily.js), so every player worldwide gets the exact same items/characters
+// with no per-browser seen/lock records to drift out of sync.
 const STORAGE_LAST_VISIT = 'wcat:v5:last-visit';
-
-function selectDailyFresh(pool, key, mode) {
-  if (!pool.length) return [];
-  const byId = new Map(pool.map(c => [c.id, c]));
-
-  const lock = readJson(STORAGE_LOCK[mode]);
-  if (lock && lock.date === key && Array.isArray(lock.ids)) {
-    const restored = lock.ids.map(id => byId.get(id)).filter(Boolean);
-    if (restored.length === Math.min(ROUNDS_PER_DAY, pool.length)) {
-      return restored;
-    }
-  }
-
-  let seen = new Set(readJson(STORAGE_SEEN[mode]) || []);
-  // Drop stale IDs that no longer exist in the roster so a shrunk pool
-  // can't permanently lock the player out of a fresh cycle.
-  for (const id of [...seen]) if (!byId.has(id)) seen.delete(id);
-
-  let result = pickFreshDailyCharacters(pool, key, seen, mode, ROUNDS_PER_DAY);
-  if (result.exhausted) {
-    seen = new Set();
-    result = pickFreshDailyCharacters(pool, key, seen, mode, ROUNDS_PER_DAY);
-  }
-  for (const c of result.picks) seen.add(c.id);
-  writeJson(STORAGE_SEEN[mode], [...seen]);
-  writeJson(STORAGE_LOCK[mode], { date: key, ids: result.picks.map(c => c.id) });
-  return result.picks;
-}
 
 function readJson(key) {
   try {
@@ -217,10 +180,11 @@ async function init() {
 
     const itemPool = chars.filter(c => c.type === 'item');
     const gridPool = chars.filter(c => c.type !== 'item');
-    const itemDaily = selectDailyFresh(itemPool, dateKey, 'items');
-    // While Characters is parked, skip its daily selection entirely so we don't
-    // advance its seen-record in the background — the tab is a coming-soon stub.
-    const gridDaily = CHARACTERS_ENABLED ? selectDailyFresh(gridPool, dateKey, 'grid') : [];
+    const itemDaily = dailyRotation(itemPool, dateKey, 'items', ROUNDS_PER_DAY);
+    // While Characters is parked, skip its daily selection — the tab is a
+    // coming-soon stub. The rotation is stateless, so re-enabling later picks
+    // up the schedule with nothing to reset.
+    const gridDaily = CHARACTERS_ENABLED ? dailyRotation(gridPool, dateKey, 'grid', ROUNDS_PER_DAY) : [];
     games.items = itemDaily.length
       ? createDailyGame(itemDaily, dateKey, { mode: 'items' })
       : null;
@@ -244,7 +208,7 @@ async function init() {
     const lastVisit = readJson(STORAGE_LAST_VISIT);
     if (typeof lastVisit === 'string' && lastVisit !== dateKey) {
       // Defer slightly so the toast doesn't collide with the loading-state swap.
-      setTimeout(() => toast('A new day — three fresh items await!'), 600);
+      setTimeout(() => toast('A new day — four fresh items await!'), 600);
     }
     writeJson(STORAGE_LAST_VISIT, dateKey);
     armDateRolloverReload();
@@ -1313,18 +1277,42 @@ function startCountdown({ silent = false } = {}) {
     if (ms <= 0) {
       clearInterval(countdownTimer);
       countdownTimer = null;
-      window.location.reload();
+      promptNewDay();
     }
   };
   tick();
   countdownTimer = setInterval(tick, 1000);
 }
 
-// Reload when the UTC day rolls over while the page is open or backgrounded.
+// Once the UTC day rolls over, the roster on screen is yesterday's. Rather
+// than yanking the page out from under the player with a silent reload, this
+// surfaces a one-time banner prompting them to refresh into the new day's
+// items/characters. Refreshing is the player's call; until then the old
+// puzzle stays interactive.
+let newDayPromptShown = false;
+function promptNewDay() {
+  if (newDayPromptShown) return;
+  newDayPromptShown = true;
+  const banner = document.createElement('div');
+  banner.className = 'new-day-banner';
+  banner.setAttribute('role', 'alert');
+  const msg = document.createElement('span');
+  msg.className = 'new-day-banner__msg';
+  msg.textContent = 'A new day has started — fresh puzzles are ready!';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn--primary';
+  btn.textContent = 'Refresh';
+  btn.addEventListener('click', () => window.location.reload());
+  banner.append(msg, btn);
+  document.body.appendChild(banner);
+}
+
+// Watch for the UTC day rolling over while the page is open or backgrounded.
 // The share-screen countdown already covers the page-visible-and-finished
 // case; this catches the player who leaves the tab open across midnight or
 // reopens it the next day. `dateKey` is captured at page load — once it no
-// longer matches today's UTC key, we reload so the fresh roster is loaded.
+// longer matches today's UTC key, the new-day prompt is surfaced.
 //
 // Registrations are kept in named refs + a teardown closure so a retry of
 // init() (or any future reset path) can rewind cleanly instead of stacking
@@ -1336,7 +1324,7 @@ function armDateRolloverReload() {
   dateRolloverArmed = true;
   const checkRollover = () => {
     if (getUtcDateKey() !== dateKey) {
-      window.location.reload();
+      promptNewDay();
     }
   };
   const onVisibility = () => {
