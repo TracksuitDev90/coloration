@@ -24,6 +24,9 @@ export async function loadCharacters() {
     // Original PNG kept as a fallback for the rare browser without WebP
     // support; the <img> swaps to it via onerror (see js/main.js).
     imageFallback: c.image || null,
+    // Last-resort art if both the WebP and the PNG fail to load — the same
+    // initials card used for entries that ship without a photo at all.
+    imagePlaceholder: placeholderDataUri(c),
   }));
 }
 
@@ -43,6 +46,33 @@ function validate(list, label, allowEmpty = false) {
     }
     if (!/^#[0-9a-fA-F]{6}$/.test(c.color.hex)) {
       throw new Error(`Bad hex for ${c.id}: ${c.color.hex}`);
+    }
+    if (c.combo) validateCombo(c, label);
+  }
+}
+
+// Combo boards are built straight from this data with no palette sampling
+// (see buildComboQuad in js/quad.js), so a malformed entry would crash the
+// round at play time. Catch it here at load instead, with a message that
+// names the offending entry.
+const COMBO_MIN_DISTRACTORS = 3;
+function validateCombo(c, label) {
+  const isPair = p => Array.isArray(p) && p.length === 2 &&
+    p.every(h => /^#[0-9a-fA-F]{6}$/.test(h));
+  const { correct, distractors } = c.combo;
+  if (!isPair(correct)) {
+    throw new Error(`${label}: ${c.id} combo.correct must be a pair of hex colors`);
+  }
+  if (!Array.isArray(distractors) || distractors.length < COMBO_MIN_DISTRACTORS) {
+    throw new Error(`${label}: ${c.id} combo needs at least ${COMBO_MIN_DISTRACTORS} distractor pairs`);
+  }
+  const key = p => p.map(h => h.toUpperCase()).join('/');
+  for (const pair of distractors) {
+    if (!isPair(pair)) {
+      throw new Error(`${label}: ${c.id} combo distractor must be a pair of hex colors`);
+    }
+    if (key(pair) === key(correct)) {
+      throw new Error(`${label}: ${c.id} combo distractor duplicates the correct pair`);
     }
   }
 }

@@ -359,7 +359,7 @@ body {
 .chip {
   display: inline-flex;
   align-items: center;
-  font-size: clamp(11px, 1.4vw, 13px);
+  font-size: clamp(12px, 1.4vw, 13px);
   font-weight: 700;
   letter-spacing: 0.01em;
   padding: 6px 12px;
@@ -894,6 +894,21 @@ body {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
 }
 
+/* On a near-white winning swatch the white check and white inner ring above
+   vanish into the fill. JS adds this variant (see isLightSwatch in main.js)
+   to flip them dark while keeping the same success-green accent. */
+.cell--correct.cell--correct-dark {
+  box-shadow:
+    0 0 0 3px #10141b,
+    0 0 0 6px var(--success),
+    0 8px 22px rgba(77, 217, 192, 0.45),
+    0 6px 18px rgba(0, 0, 0, 0.5);
+}
+.cell--correct.cell--correct-dark::after {
+  color: #10141b;
+  text-shadow: 0 1px 4px rgba(255, 255, 255, 0.5);
+}
+
 .cell--dim {
   opacity: 0.5;
   filter: saturate(0.7);
@@ -964,6 +979,14 @@ body {
   color: #b8c0d0;
   min-height: 1.4em;
   line-height: 1.45;
+}
+
+/* Consecutive-day completion streak, shown in the status slot on the
+   finished screen above the share card. */
+.status .day-streak {
+  font-weight: 600;
+  color: #ffb36b;
+  letter-spacing: 0.01em;
 }
 
 .actions {
@@ -1110,6 +1133,12 @@ body {
 }
 
 /* A thin rainbow accent above the footer ties the chrome together. */
+/* Imagery attribution — quieter than the main footer line. */
+.bottombar-legal {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
 .bottombar::before {
   content: "";
   position: absolute;
@@ -1414,7 +1443,10 @@ body {
   .title-text { min-width: 0; }
   .chip {
     padding: 5px 8px;
-    font-size: clamp(11px, 3vw, 12px);
+    /* 12px floor — 11px was below comfortable legibility for low-vision
+       players. Kept fixed (no clamp ceiling change) so the locked single
+       line of five chips still fits a 320px screen. */
+    font-size: 12px;
     border-bottom-width: 3px;
     letter-spacing: 0;
   }

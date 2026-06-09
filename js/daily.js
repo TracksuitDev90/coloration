@@ -53,7 +53,7 @@ function parseUtcDateKey(key) {
   return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
 
-function daysBetween(fromKey, toKey) {
+export function daysBetween(fromKey, toKey) {
   const ms = parseUtcDateKey(toKey) - parseUtcDateKey(fromKey);
   return Math.floor(ms / 86400000);
 }
@@ -222,14 +222,28 @@ export function shuffleCharacters(allCharacters) {
 // across days the same slot cycles through every cell before any repeat — so
 // even the same character/item on a later day lands on a fresh spot.
 //
-// `step` must be coprime to `totalCells`; that gives a full cycle. The
-// defaults below cover the two boards in play (16-cell grid, 4-swatch quad).
+// `step` must be coprime to `totalCells`; that gives a full cycle. The two
+// boards in play (16-cell grid, 4-swatch quad) keep their original hardcoded
+// steps so the published schedule doesn't shift; any future board size gets
+// a computed coprime step rather than silently degrading to step 1 (which
+// for some sizes would stop the answer position from rotating at all).
 export function positionForRound(dateKey, slotIndex, totalCells, slotsPerDay = CHARACTERS_PER_DAY) {
   if (!Number.isInteger(totalCells) || totalCells <= 0) return 0;
   const dayIndex = Math.max(0, daysBetween(ROTATION_EPOCH, dateKey));
   const linear = dayIndex * slotsPerDay + slotIndex;
-  const step = totalCells === 16 ? 7 : totalCells === 4 ? 3 : 1;
+  const step = totalCells === 16 ? 7 : totalCells === 4 ? 3 : coprimeStep(totalCells);
   return ((linear * step) % totalCells + totalCells) % totalCells;
+}
+
+// Largest step below totalCells that is coprime to it — guarantees the walk
+// visits every cell before repeating. Falls back to 1 only for totalCells <= 2,
+// where it is genuinely coprime.
+function coprimeStep(totalCells) {
+  const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+  for (let step = totalCells - 1; step > 1; step--) {
+    if (gcd(step, totalCells) === 1) return step;
+  }
+  return 1;
 }
 
 // Deterministic per-round board seed. Keyed off the UTC date, mode, and round
