@@ -634,8 +634,6 @@ body {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  filter: grayscale(1) contrast(1.05);
   image-rendering: -webkit-optimize-contrast;
   /* Block the iOS Safari long-press callout / drag preview that would
      otherwise reveal the source image in full color, defeating the
@@ -647,11 +645,38 @@ body {
   pointer-events: none;
 }
 
+/* Foreground image: `contain` shows the whole 4:3 photo with no crop. When the
+   frame is itself 4:3 (desktop) this fills exactly, identical to the old
+   `cover`. When the frame is wider than 4:3 (phones, where the height is capped
+   to keep the colour board visible), the photo is letterboxed and the blurred
+   .photo-bg below fills the side gaps instead of cropping the image. */
+#character-img {
+  object-fit: contain;
+  filter: grayscale(1) contrast(1.05);
+}
+
+/* Blurred backdrop: a zoomed, dimmed copy of the same photo that fills the
+   space the contained foreground leaves empty, so there are no dead bars. It
+   stays grayscale until reveal just like the foreground, so no colour leaks. */
+.photo-bg {
+  object-fit: cover;
+  /* Overfill so the blur's soft edge never exposes the frame behind it. */
+  transform: scale(1.15);
+  filter: grayscale(1) blur(22px) brightness(0.55);
+}
+
 /* Transition only on the reveal direction. Without this scoping, removing
    `revealed` between rounds animates color → grayscale over 600ms, which
    briefly shows the next photo (or lingering old photo) in color. */
-.photo.revealed img {
+.photo.revealed #character-img {
   filter: grayscale(0) contrast(1);
+  transition: filter 600ms var(--ease-out);
+}
+
+/* Reveal drops only the backdrop's grayscale — blur and dimming stay so it
+   keeps reading as a soft fill behind the sharp foreground. */
+.photo.revealed .photo-bg {
+  filter: grayscale(0) blur(22px) brightness(0.55);
   transition: filter 600ms var(--ease-out);
 }
 
@@ -1209,7 +1234,12 @@ body {
   .photo {
     width: calc(100% - 24px);
     aspect-ratio: unset;
-    height: min(calc((100vw - 24px) * 3 / 4), 30dvh);
+    /* Capped shorter than a true 4:3 so the colour board stays visible. The
+       foreground image is `contain`ed (not cropped) into this wider-than-4:3
+       box, with the blurred .photo-bg filling the sides. Raised from 30dvh to
+       37dvh so the contained photo renders a touch larger and the blurred
+       filler stays thin. */
+    height: min(calc((100vw - 24px) * 3 / 4), 37dvh);
   }
 
   .photo img {

@@ -94,6 +94,7 @@ function writeJson(key, value) {
 
 const els = {
   img: document.getElementById('character-img'),
+  imgBg: document.getElementById('character-img-bg'),
   name: document.getElementById('character-name'),
   photoFrame: document.getElementById('photo-frame'),
   board: document.getElementById('board'),
@@ -549,6 +550,19 @@ function renderRound() {
       }
     };
     els.img.src = c.imageSrc;
+  }
+  // Feed the blurred backdrop the same bytes as the foreground (the browser
+  // reuses the single fetch), so the `contain`ed photo's side gaps are filled
+  // with a soft copy of itself instead of dead bars.
+  if (els.imgBg && els.imgBg.getAttribute('src') !== c.imageSrc) {
+    els.imgBg.removeAttribute('src');
+    els.imgBg.onerror = () => {
+      els.imgBg.onerror = null;
+      if (c.imageFallback && els.imgBg.src !== c.imageFallback) {
+        els.imgBg.src = c.imageFallback;
+      }
+    };
+    els.imgBg.src = c.imageSrc;
   }
   els.img.alt = isItemRound(s)
     ? `Scene from ${c.show || c.name} (grayscale until revealed)`
