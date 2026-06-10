@@ -142,11 +142,11 @@ const els = {
   stage: document.getElementById('stage'),
 };
 
-// On phones the caption sits on a single line above the photo. When a name is
-// too long to fit, shrink the font (down to a floor) until it fits rather than
-// letting it wrap or clip. No-op on wider viewports, where the caption flows
-// inside the desktop grid — clear any inline size so it never leaks across the
-// breakpoint.
+// On phones the caption sits above the photo with a two-line budget: it wraps
+// naturally to a second line, and only when a name would need a third line is
+// the font stepped down (to a floor) until two lines hold it. No-op on wider
+// viewports, where the caption flows inside the desktop grid — clear any
+// inline size so it never leaks across the breakpoint.
 const CAPTION_MOBILE_MAX = 759;
 const CAPTION_MIN_PX = 13;
 function fitCaption() {
@@ -154,10 +154,18 @@ function fitCaption() {
   if (!el) return;
   el.style.fontSize = '';
   if (window.innerWidth > CAPTION_MOBILE_MAX) return;
-  // Start from the CSS-computed size, then step down until the single line fits.
   let size = parseFloat(getComputedStyle(el).fontSize) || 22;
   let guard = 64;
-  while (el.scrollWidth > el.clientWidth && size > CAPTION_MIN_PX && guard-- > 0) {
+  // Rendered height tells the line count: two lines fit inside 2 × line-height
+  // (plus a 2px tolerance for subpixel rounding).
+  const overTwoLines = () => {
+    const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || size * 1.2;
+    const padding =
+      (parseFloat(getComputedStyle(el).paddingTop) || 0) +
+      (parseFloat(getComputedStyle(el).paddingBottom) || 0);
+    return el.scrollHeight - padding > lineHeight * 2 + 2;
+  };
+  while (overTwoLines() && size > CAPTION_MIN_PX && guard-- > 0) {
     size -= 1;
     el.style.fontSize = `${size}px`;
   }
@@ -609,9 +617,10 @@ function renderRound() {
   els.share.hidden = true;
   els.shareActions.hidden = true;
   if (els.copyResult) els.copyResult.hidden = true;
-  els.status.textContent = isItemRound(s)
-    ? 'Pick the correct color.'
-    : 'Pick a shade to guess.';
+  // The question itself is the instruction — a "pick a color" status line
+  // under the board just repeated it. The status stays empty until it has
+  // real state to report (guesses left, skip notice, streak).
+  els.status.textContent = '';
   clearHints();
 
   if (s.board.kind === 'quad') {
