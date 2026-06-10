@@ -8,17 +8,18 @@
 //   grid — 4x4 shade picker, 3 guesses, axis hints after the 2nd miss
 //   quad — 4 distinct color swatches, 1 guess, no hints
 //
-// Skips: a skipped round is neither won nor lost — neutral against streak —
-// but still advances the run. The skip budget (MAX_SKIPS_PER_MODE) is two per
-// mode per day, and the UI shows the remaining count.
+// Skips: a skipped round is neither won nor lost — it just advances the run.
+// The skip budget (MAX_SKIPS_PER_MODE) is normally two per mode per day, and
+// the UI shows the remaining count.
+//
+// Streaks are day-based, not guess-based: consecutive days of finishing the
+// daily run, tracked in main.js. There is no per-guess streak here.
 
 import { buildGrid } from './grid.js';
 import { buildQuad } from './quad.js';
 import { positionForRound, seedForRound } from './daily.js';
 
 const STORAGE_KEYS = {
-  // Lifetime best streak survives the coloration reset — keep it on v3.
-  bestStreak: 'wcat:v3:bestStreak',
   // In-progress daily run. Bumped v4 -> v5 alongside the seen/lock keys in
   // main.js so today's puzzle resets fresh instead of resuming the pre-reset
   // rounds (which referenced the old open-ended daily selection).
@@ -28,9 +29,10 @@ const STORAGE_KEYS = {
 const GRID_MAX_GUESSES = 3;
 const QUAD_MAX_GUESSES = 1;
 const GRID_SIZE = 4;
-// Two skips per mode per day. The UI shows the remaining count (values >= 10
-// collapse to a plain "Skip available" label, but two stays an explicit count).
-export const MAX_SKIPS_PER_MODE = 2;
+// TEMP: skip limit lifted for accuracy verification so every round can be
+// flipped through freely. The chip and skip button already collapse to plain
+// "Skip" labels for values >= 10. Restore to 2 to re-enable the daily budget.
+export const MAX_SKIPS_PER_MODE = Infinity;
 
 // All 16 positions on the 4x4 grid, ordered row-major. The answer
 // rotates through these across rounds and days, and the grid ramp
@@ -58,7 +60,7 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
   const sameDay = all && all.date === dateKey;
   const stored = sameDay ? all[mode] : null;
 
-  let rounds, currentIndex, skipsUsed, streak;
+  let rounds, currentIndex, skipsUsed;
   if (stored && Array.isArray(stored.rounds) && arrayEqual(stored.charIds, charIds)) {
     rounds = dailyCharacters.map((c, i) => {
       const sr = stored.rounds[i] || {};
@@ -73,7 +75,6 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
     });
     currentIndex = clampInt(stored.currentIndex, 0, rounds.length - 1);
     skipsUsed = clampInt(stored.skipsUsed, 0, MAX_SKIPS_PER_MODE);
-    streak = clampInt(stored.streak, 0, 9999);
   } else {
     rounds = dailyCharacters.map(c => ({
       charId: c.id,
@@ -85,7 +86,6 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
     }));
     currentIndex = 0;
     skipsUsed = 0;
-    streak = 0;
   }
 
   const state = {
@@ -95,8 +95,6 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
     rounds,
     currentIndex,
     skipsUsed,
-    streak,
-    bestStreak: clampInt(readNumber(STORAGE_KEYS.bestStreak, 0), 0, 9999),
     board: null,
     revealed: false,
   };
@@ -150,18 +148,12 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
     if (cell.isCorrect) {
       round.won = true;
       state.revealed = true;
-      state.streak += 1;
-      if (state.streak > state.bestStreak) {
-        state.bestStreak = state.streak;
-        writeNumber(STORAGE_KEYS.bestStreak, state.bestStreak);
-      }
       persist();
       return { kind: 'correct', cell };
     }
     if (round.guesses.length >= currentMaxGuesses()) {
       round.lost = true;
       state.revealed = true;
-      state.streak = 0;
       persist();
       return { kind: 'exhausted', correctCell: correctCell() };
     }
@@ -224,8 +216,6 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
       rounds: state.rounds,
       roundIndex: state.currentIndex,
       totalRounds: state.characters.length,
-      streak: state.streak,
-      bestStreak: state.bestStreak,
       guessesLeft: max - round.guesses.length,
       revealed: state.revealed,
       finished: isComplete(),
@@ -253,7 +243,6 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
       })),
       currentIndex: state.currentIndex,
       skipsUsed: state.skipsUsed,
-      streak: state.streak,
     };
     writeJson(STORAGE_KEYS.daily, base);
   }
@@ -276,17 +265,6 @@ function readDaily() {
     const v = localStorage.getItem(STORAGE_KEYS.daily);
     return v ? JSON.parse(v) : null;
   } catch { return null; }
-}
-
-function readNumber(key, fallback) {
-  try {
-    const v = localStorage.getItem(key);
-    return v == null ? fallback : Number(v);
-  } catch { return fallback; }
-}
-
-function writeNumber(key, value) {
-  try { localStorage.setItem(key, String(value)); } catch { reportStorageWriteFailure(); }
 }
 
 function writeJson(key, value) {

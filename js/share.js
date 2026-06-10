@@ -999,8 +999,6 @@ export function snapshotFromPayload(payload, allCharacters) {
     rounds,
     roundIndex: rounds.length - 1,
     totalRounds: rounds.length,
-    streak: 0,
-    bestStreak: 0,
     finished: true,
     revealed: true,
   };
