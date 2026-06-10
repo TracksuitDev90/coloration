@@ -24,17 +24,17 @@ initTitleBlob();
 
 const COL_LABELS = ['A', 'B', 'C', 'D'];
 const GRID_SIZE = 4;
-// One quartet of items per UTC day. The selection draws this many fresh
-// entries and the run ends after the fourth, so each player sees the same
-// four-item set per day. (During accuracy verification this was temporarily
-// lifted to Infinity to surface the whole roster in a single day.)
-const ROUNDS_PER_DAY = 4;
+// TEMP: daily limit lifted so the whole roster surfaces in a single day for
+// accuracy verification. Infinity makes the selection draw every entry (capped
+// to the pool size), and the round chip already drops its "/ N" suffix when
+// the run is open-ended. Restore to 4 to re-enable the one-quartet-a-day cap.
+const ROUNDS_PER_DAY = Infinity;
 
-// Characters mode is parked as "coming soon" while it's being reworked. The
-// tab still renders (so the nav reads "Items / Characters") but selecting it
-// surfaces a toast instead of switching — the live experience is items-only.
-// Flip back to true to restore the full two-mode game.
-const CHARACTERS_ENABLED = false;
+// Characters mode is parked as "coming soon" while it's being reworked.
+// TEMP: re-enabled (alongside the lifted daily/skip caps) so every character
+// can be flipped through for accuracy verification. Restore to false to park
+// the tab again when verification is done.
+const CHARACTERS_ENABLED = true;
 
 // Last UTC date the player opened the app. Compared to today's key on init
 // to surface a "fresh puzzles" prompt and to detect midnight rollovers
@@ -46,11 +46,22 @@ const CHARACTERS_ENABLED = false;
 // with no per-browser seen/lock records to drift out of sync.
 const STORAGE_LAST_VISIT = 'wcat:v5:last-visit';
 
-// Consecutive-day completion streak — separate from the in-round guess
-// streak. A day counts once the daily run is finished (every round won,
-// lost, or skipped); missing a day resets the count. Shown on the end
-// screen and stamped into the share text/card.
-const STORAGE_DAY_STREAK = 'wcat:v1:dayStreak';
+// Consecutive-day completion streak — the only streak in the game. A day
+// counts once the daily run is finished (every round won, lost, or skipped);
+// missing a day resets the count. Shown in the scoreboard chips, on the end
+// screen, and stamped into the share text/card.
+//
+// Bumped v1 -> v2 when streaks became wholly day-based: the old per-guess
+// streak (and its lifetime best) was retired, so both counters restart from
+// zero under the new meaning rather than inheriting guess-based numbers.
+const STORAGE_DAY_STREAK = 'wcat:v2:dayStreak';
+
+// One-time cleanup of the retired guess-streak keys so stale numbers don't
+// linger in localStorage.
+try {
+  localStorage.removeItem('wcat:v3:bestStreak');
+  localStorage.removeItem('wcat:v1:dayStreak');
+} catch { /* private mode — nothing to clear */ }
 
 function recordDayCompletion(key) {
   const raw = readJson(STORAGE_DAY_STREAK);
@@ -65,6 +76,19 @@ function recordDayCompletion(key) {
   const best = Math.max(streak, prev.best || 0);
   writeJson(STORAGE_DAY_STREAK, { streak, lastDate: key, best });
   return { streak, best };
+}
+
+// Day streak as it should read in the scoreboard chips right now. A streak
+// whose last completed day is today or yesterday is alive and shows its
+// count (finishing today extends a yesterday-anchored streak); anything
+// older is broken and reads 0. Best is the lifetime high-water mark.
+function dayStreakDisplay() {
+  const rec = readJson(STORAGE_DAY_STREAK);
+  if (!rec || typeof rec !== 'object') return { streak: 0, best: 0 };
+  const best = rec.best || 0;
+  const alive = typeof rec.lastDate === 'string' &&
+    (rec.lastDate === dateKey || daysBetween(rec.lastDate, dateKey) === 1);
+  return { streak: alive ? (rec.streak || 0) : 0, best };
 }
 
 // Streak as recorded for today — 0 unless today's run has been completed.
@@ -959,8 +983,11 @@ function updateChips() {
   els.roundChip.textContent = s.totalRounds >= 10
     ? `Round ${s.roundIndex + 1}`
     : `Round ${s.roundIndex + 1} / ${s.totalRounds}`;
-  els.streakChip.textContent = `Streak ${s.streak}`;
-  els.bestChip.textContent = `Best ${s.bestStreak}`;
+  // Streak/Best are the consecutive-day completion streak — the same number
+  // the end screen and share card celebrate, not a per-guess counter.
+  const day = dayStreakDisplay();
+  els.streakChip.textContent = `Streak ${day.streak}`;
+  els.bestChip.textContent = `Best ${day.best}`;
   els.guessesChip.textContent = `Guesses ${s.guessesLeft}`;
   els.skipsChip.textContent = s.maxSkips >= 10
     ? 'Skip available'
@@ -1282,12 +1309,14 @@ async function showFinished() {
   fitCaption();
   if (els.countdown) els.countdown.textContent = '';
   els.stage?.classList.add('stage--finished');
-  updateChips();
 
   // Finishing the run banks today toward the consecutive-day streak (idempotent
-  // on reloads/tab switches). The status line survives the stage--finished
-  // collapse, so it doubles as the streak callout above the share card.
+  // on reloads/tab switches). Banked before updateChips so the Streak/Best
+  // chips pick up the freshly extended count. The status line survives the
+  // stage--finished collapse, so it doubles as the streak callout above the
+  // share card.
   const dayStreak = recordDayCompletion(dateKey);
+  updateChips();
   els.status.textContent = '';
   if (dayStreak.streak >= 1) {
     const streakEl = document.createElement('span');
@@ -1466,6 +1495,42 @@ function toast(message) {
   toastTimer = setTimeout(() => {
     host.classList.remove('toast--visible');
   }, duration);
+}
+
+// Hard reset: wipe every wcat:* key (last-visit record, in-progress run, day
+// streak) and reload to a clean URL. Two-tap confirm so a stray click can't
+// nuke progress — the first tap arms it, a second within 3s commits,
+// otherwise it disarms.
+const hardResetBtn = document.getElementById('hard-reset-btn');
+if (hardResetBtn) {
+  const idleLabel = 'Hard reset';
+  const armedLabel = 'Tap again to confirm';
+  let armedTimer = null;
+  const disarm = () => {
+    hardResetBtn.textContent = idleLabel;
+    hardResetBtn.classList.remove('btn--hard-reset-armed');
+    armedTimer = null;
+  };
+  hardResetBtn.addEventListener('click', () => {
+    if (!armedTimer) {
+      hardResetBtn.textContent = armedLabel;
+      hardResetBtn.classList.add('btn--hard-reset-armed');
+      armedTimer = setTimeout(disarm, 3000);
+      return;
+    }
+    clearTimeout(armedTimer);
+    armedTimer = null;
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('wcat:')) localStorage.removeItem(key);
+      }
+    } catch { /* private mode — nothing to clear */ }
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = '';
+    window.location.replace(url.toString());
+  });
 }
 
 // Offline support: the manifest advertises a standalone (installable) app, so

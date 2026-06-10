@@ -1132,6 +1132,22 @@ body {
   margin-top: clamp(20px, 4vw, 36px);
 }
 
+.btn--hard-reset {
+  font-size: 11px;
+  padding: 6px 12px;
+  min-height: 0;
+  opacity: 0.6;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.btn--hard-reset:hover { opacity: 1; }
+.btn--hard-reset-armed {
+  opacity: 1;
+  color: #2a1700;
+  background: #ffb24d;
+  border-color: transparent;
+}
+
 /* A thin rainbow accent above the footer ties the chrome together. */
 /* Imagery attribution — quieter than the main footer line. */
 .bottombar-legal {
