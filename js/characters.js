@@ -4,7 +4,7 @@
 // backgrounds, which is the wrong signal for "what is this color".
 //
 // Each entry has a `type`:
-//   "grid"  — full-character color, played on the 4x4 shade grid (3 guesses)
+//   "grid"  — full-character color, played on the 5x5 shade gradient (3 guesses)
 //   "item"  — specific item from a scene, played on a 4-swatch quad (1 guess)
 
 export async function loadCharacters() {

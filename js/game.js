@@ -5,7 +5,7 @@
 // its own independent slot.
 //
 // Two board kinds, mixed within the same daily run:
-//   grid — 4x4 shade picker, 3 guesses, axis hints after the 2nd miss
+//   grid — 5x5 ordered shade gradient, 3 guesses, proximity-scored
 //   quad — 4 distinct color swatches, 1 guess, no hints
 //
 // Skips: a skipped round is neither won nor lost — it just advances the run.
@@ -20,32 +20,41 @@ import { buildQuad } from './quad.js';
 import { positionForRound, seedForRound } from './daily.js';
 
 const STORAGE_KEYS = {
-  // In-progress daily run. Bumped v4 -> v5 alongside the seen/lock keys in
-  // main.js so today's puzzle resets fresh instead of resuming the pre-reset
-  // rounds (which referenced the old open-ended daily selection).
-  daily: 'wcat:v5:daily',
+  // In-progress daily run. Bumped v5 -> v6 with the 4x4 → 5x5 ordered-grid
+  // redesign: old saves carry 4x4 coordinates and no proximity scores, and
+  // must not resume against 5x5 boards. main.js clears the orphaned v5 key.
+  daily: 'wcat:v6:daily',
 };
 
 const GRID_MAX_GUESSES = 3;
 const QUAD_MAX_GUESSES = 1;
-const GRID_SIZE = 4;
+const GRID_SIZE = 5;
 // TEMP: skip limit lifted for accuracy verification so every round can be
 // flipped through freely. The chip and skip button already collapse to plain
 // "Skip" labels for values >= 10. Restore to 2 to re-enable the daily budget.
 export const MAX_SKIPS_PER_MODE = Infinity;
 
-// All 16 positions on the 4x4 grid, ordered row-major. The answer
-// rotates through these across rounds and days, and the grid ramp
-// reorients around whichever cell holds the answer — so a corner
-// answer pulls the gradient diagonally across the board, and a centre
-// answer fans the ramp outward. Corners are safe now that the
-// generator's asymmetric ramp logic handles edge positions cleanly.
-const GRID_POSITIONS = [
-  [0, 0], [0, 1], [0, 2], [0, 3],
-  [1, 0], [1, 1], [1, 2], [1, 3],
-  [2, 0], [2, 1], [2, 2], [2, 3],
-  [3, 0], [3, 1], [3, 2], [3, 3],
-];
+// Proximity scoring for grid rounds (0-100 per round). Finding the exact
+// cell scores full credit; a lost round still banks partial credit for the
+// closest guess by Chebyshev ring distance — landing one ring away on an
+// ordered gradient is genuinely "almost". Quad rounds stay binary and carry
+// no score.
+const RING_SCORES = [100, 50, 25];
+export function ringScore(ring) {
+  return Number.isInteger(ring) && ring >= 0 && ring < RING_SCORES.length
+    ? RING_SCORES[ring]
+    : 0;
+}
+
+// All positions on the grid, ordered row-major. The answer rotates through
+// these across rounds and days (see positionForRound), and the ordered
+// gradient re-anchors around whichever cell holds the answer. The generator
+// may snap the row for gamut-edge colors (near-white answers can't have
+// paler rows above them); game state always uses the returned position.
+const GRID_POSITIONS = Array.from(
+  { length: GRID_SIZE * GRID_SIZE },
+  (_, k) => [Math.floor(k / GRID_SIZE), k % GRID_SIZE],
+);
 
 export function maxGuessesFor(character) {
   return character?.type === 'item' ? QUAD_MAX_GUESSES : GRID_MAX_GUESSES;
@@ -71,6 +80,7 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
         lost: !!sr.lost,
         skipped: !!sr.skipped,
         seed: Number.isFinite(sr.seed) ? sr.seed : null,
+        score: Number.isFinite(sr.score) ? sr.score : undefined,
       };
     });
     currentIndex = clampInt(stored.currentIndex, 0, rounds.length - 1);
@@ -83,6 +93,7 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
       lost: false,
       skipped: false,
       seed: null,
+      score: undefined,
     }));
     currentIndex = 0;
     skipsUsed = 0;
@@ -144,18 +155,33 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
     if (isRoundDone(round)) return { kind: 'noop' };
     const cell = cellAt(pos);
     if (!cell) return { kind: 'noop' };
-    round.guesses.push({ ...pos, correct: cell.isCorrect });
+    const isGrid = state.board.kind === 'grid';
+    // Grid guesses carry their proximity (ring distance + ΔE from the
+    // answer) so the share card and the mid-round replay path can recolor
+    // old guesses without rebuilding the board's color math.
+    round.guesses.push({
+      ...pos,
+      correct: cell.isCorrect,
+      ...(isGrid && Number.isInteger(cell.ring) ? { ring: cell.ring } : {}),
+      ...(isGrid && Number.isFinite(cell.dE) ? { dE: cell.dE } : {}),
+    });
     if (cell.isCorrect) {
       round.won = true;
+      if (isGrid) round.score = ringScore(0);
       state.revealed = true;
       persist();
       return { kind: 'correct', cell };
     }
     if (round.guesses.length >= currentMaxGuesses()) {
       round.lost = true;
+      // Partial credit for the closest miss (grid rounds only) — a wrong
+      // guess always sits at ring >= 1, so this can never award full marks.
+      if (isGrid) {
+        round.score = Math.max(0, ...round.guesses.map(g => ringScore(g.ring)));
+      }
       state.revealed = true;
       persist();
-      return { kind: 'exhausted', correctCell: correctCell() };
+      return { kind: 'exhausted', correctCell: correctCell(), score: round.score };
     }
     persist();
     return { kind: 'wrong', cell, guessesLeft: currentMaxGuesses() - round.guesses.length };
@@ -208,7 +234,19 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
   function snapshot() {
     const round = state.rounds[state.currentIndex];
     const max = currentMaxGuesses();
+    // Day score: proximity points banked so far (grid mode). Skipped rounds
+    // are excluded from both the total and the possible maximum, matching
+    // the skip semantics elsewhere (neither won nor lost).
+    let dayScore = 0;
+    let dayScoreMax = 0;
+    for (const r of state.rounds) {
+      if (r.skipped || !(r.won || r.lost)) continue;
+      dayScoreMax += 100;
+      dayScore += Number.isFinite(r.score) ? r.score : (r.won ? 100 : 0);
+    }
     return {
+      dayScore,
+      dayScoreMax,
       date: state.date,
       mode: state.mode,
       characters: state.characters,
@@ -240,6 +278,7 @@ export function createDailyGame(dailyCharacters, dateKey, options = {}) {
         lost: r.lost,
         skipped: r.skipped,
         seed: r.seed,
+        ...(Number.isFinite(r.score) ? { score: r.score } : {}),
       })),
       currentIndex: state.currentIndex,
       skipsUsed: state.skipsUsed,

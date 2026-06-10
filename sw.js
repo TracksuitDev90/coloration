@@ -5,7 +5,9 @@
 //   - assets/ (photos, icons)    → cache-first with runtime fill; they're
 //     content-addressed by filename in practice and never change in place
 // Bump VERSION to drop every cached entry on the next activate.
-const VERSION = 'v1';
+// v2: 5x5 ordered-gradient grid redesign — grid/game/main/share/styles and
+// the storage format all changed together; a mixed cache would break.
+const VERSION = 'v2';
 const CACHE = `coloration-${VERSION}`;
 
 // Pre-cached shell: enough to boot the game offline after the first visit.
