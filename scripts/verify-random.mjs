@@ -181,16 +181,22 @@ section('quad boards contain four visually distinct swatches', () => {
 // 4) positionForRound — across a full cycle every cell is visited the same
 //    number of times. No quadrant favoured.
 section('positionForRound uniformly covers the board', () => {
-  // 16-cell grid, slots-per-day = 3, walk 48 (day, slot) combinations so each
-  // cell should appear exactly 3 times (48 / 16).
-  const gridCounts = new Array(16).fill(0);
-  for (let i = 0; i < 48; i++) {
+  // 25-cell grid, slots-per-day = 3, walk 75 (day, slot) combinations so
+  // each cell should appear exactly 3 times (75 / 25). Also assert no two
+  // same-day slots share a position, and consecutive linear slots never
+  // land on adjacent cells (the step-11 walk scatters ~2 rows per round).
+  const gridCounts = new Array(25).fill(0);
+  for (let i = 0; i < 75; i++) {
     const day = Math.floor(i / 3);
     const slot = i % 3;
-    const pos = positionForRound(dayKey(day), slot, 16, 3);
+    const pos = positionForRound(dayKey(day), slot, 25, 3);
     gridCounts[pos]++;
+    if (slot > 0) {
+      const prev = positionForRound(dayKey(day), slot - 1, 25, 3);
+      assert.notEqual(pos, prev, `grid: day ${day} slots ${slot - 1}/${slot} share position ${pos}`);
+    }
   }
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 25; i++) {
     assert.equal(gridCounts[i], 3, `grid cell ${i}: expected 3 visits, got ${gridCounts[i]}`);
   }
   // 4-swatch quad, slots-per-day = 3, walk 12 combinations so each box
@@ -205,7 +211,7 @@ section('positionForRound uniformly covers the board', () => {
   for (let i = 0; i < 4; i++) {
     assert.equal(quadCounts[i], 3, `quad box ${i}: expected 3 visits, got ${quadCounts[i]}`);
   }
-  console.log(`      grid 16-cell distribution: ${gridCounts.join(',')}`);
+  console.log(`      grid 25-cell distribution: ${gridCounts.join(',')}`);
   console.log(`      quad  4-box distribution: ${quadCounts.join(',')}`);
 });
 

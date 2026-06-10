@@ -5,7 +5,7 @@ A daily color guessing game. Each day, the puzzle presents four iconic items and
 ## How to play
 
 - **Items** (live) — a 2×2 swatch picker. Four distinct colors, one guess per round, four rounds per day.
-- **Characters** (coming soon) — a 4×4 shade grid centered on the right hue. The tab is visible but parked while the mode is reworked (`CHARACTERS_ENABLED` in `js/main.js`).
+- **Characters** — a 5×5 ordered shade gradient: rows run pale → deep, columns run muted/cool → vivid/warm, and the character's true color hides somewhere in the field. Three guesses; each miss earns a silent temperature glow (hot amber = close, cool blue = far). Rounds are proximity-scored out of 100 — finding the exact cell is full marks, and a near miss one ring away still banks 50 (two rings, 25).
 
 Each day allows up to **2 skips**. A skipped round is neutral against your in-day streak but still uses the slot. Progress persists per UTC day in `localStorage`, so refreshing mid-puzzle picks up where you left off; the next UTC midnight starts a fresh set. Finishing the run on consecutive days builds a **day streak**, shown on the end screen and stamped into shares.
 

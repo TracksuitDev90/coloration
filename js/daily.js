@@ -223,15 +223,18 @@ export function shuffleCharacters(allCharacters) {
 // even the same character/item on a later day lands on a fresh spot.
 //
 // `step` must be coprime to `totalCells`; that gives a full cycle. The two
-// boards in play (16-cell grid, 4-swatch quad) keep their original hardcoded
-// steps so the published schedule doesn't shift; any future board size gets
-// a computed coprime step rather than silently degrading to step 1 (which
-// for some sizes would stop the answer position from rotating at all).
+// boards in play (25-cell grid, 4-swatch quad) use hardcoded steps so the
+// published schedule doesn't shift; any future board size gets a computed
+// coprime step rather than silently degrading to step 1 (which for some
+// sizes would stop the answer position from rotating at all). 25 is pinned
+// to 11 explicitly: coprimeStep(25) would return 24 ≡ −1 (mod 25), which
+// walks the answer linearly backwards one cell per round — step 11 scatters
+// it about two rows and a column per round instead.
 export function positionForRound(dateKey, slotIndex, totalCells, slotsPerDay = CHARACTERS_PER_DAY) {
   if (!Number.isInteger(totalCells) || totalCells <= 0) return 0;
   const dayIndex = Math.max(0, daysBetween(ROTATION_EPOCH, dateKey));
   const linear = dayIndex * slotsPerDay + slotIndex;
-  const step = totalCells === 16 ? 7 : totalCells === 4 ? 3 : coprimeStep(totalCells);
+  const step = totalCells === 25 ? 11 : totalCells === 16 ? 7 : totalCells === 4 ? 3 : coprimeStep(totalCells);
   return ((linear * step) % totalCells + totalCells) % totalCells;
 }
 

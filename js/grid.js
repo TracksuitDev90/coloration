@@ -1,28 +1,28 @@
-// Shade-grid generator. Builds a 4x4 (or arbitrary) board of shades around
-// a correct hex color, with the correct cell at a seeded random position
-// that can land anywhere on the board and changes every round.
+// Shade-grid generator. Builds a 5x5 (or arbitrary) board of shades around
+// a correct hex color, laid out as a fully ordered 2D gradient:
+//
+//   rows    — lightness, monotonic: palest at the top, deepest at the bottom
+//   columns — vividness/warmth, monotonic: muted/cool on the left,
+//             vivid/warm on the right
+//
+// The correct cell hides somewhere inside that ordered field (its position
+// rotates daily, see daily.js). Because the board is ordered, every guess
+// teaches the player something — "too dark and too dull" means move up and
+// right — so the game plays as navigation rather than lucky taps.
 //
 // The grid is generated in OKLab/OKLCH (perceptually uniform) so neighbor
 // difficulty is consistent across hues — a chroma step on Tweety yellow
 // looks about as different as the same step on a dusty pink.
 //
-// Each cell comes from one of two sources, stitched together so the board
-// always has a satisfying mix regardless of where the correct cell lands:
+// Two competing constraints shape the ramps:
+//   - cells must stay distinguishable (a ΔE floor between neighbors), and
+//   - the correct cell must NOT stick out — its steps to its own neighbors
+//     have to look like every other step on the board (asymmetry cap +
+//     sore-thumb validation below).
 //
-//   1. Memory anchors — fixed perceptual variants of the correct color
-//      (pale-cream, deep-rich, warm-shifted, cool-shifted). These are
-//      absolute transformations of the answer, not offsets from the
-//      ramp, so a player always sees both a lighter AND a richer plausible
-//      version even when correct sits near a gamut edge. Anchors are
-//      placed on the cells farthest from correct so the inner cells
-//      stay close.
-//   2. A perceptual ramp around correct — balanced signed offsets in
-//      OKLab on the row and column axes. Fills the remaining cells with
-//      "throw-off" shades close to the answer.
-//
-// Anchors stay inside the same color family: their hue rotates by at
-// most ~25° on the OKLCH circle, and chroma is floored so decoys never
-// drift into a different family (no green Pikachu, no purple Shrek).
+// Decoys stay inside the same color family: the hue sweep is capped at a
+// fraction of the hue-specific JND and chroma is floored, so no green
+// Pikachu and no purple Shrek.
 
 // --- Legacy HSL helpers (still used by quad.js and daily.js) ------------
 
@@ -207,50 +207,96 @@ const JND_TABLE = [
   { h: 330, stepL: 0.035, stepC: 0.025, stepH: 9 },  // pink
 ];
 
-// Per-round jitter on each step (±20%) so consecutive rounds don't reuse
-// the exact same gradient magnitude.
-const JITTER_LO = 0.8;
-const JITTER_HI = 1.2;
+// Per-gap jitter on the ramps (±10%) so consecutive rounds don't reuse the
+// exact same gradient magnitudes. Applied to gap sizes only — never to the
+// ordering — so monotonicity is preserved by construction.
+const GAP_JITTER_LO = 0.9;
+const GAP_JITTER_HI = 1.1;
 
-// Neutrals (chroma below this) skip the chroma/hue sweep entirely and
-// vary lightness on both axes instead. The two step sizes are
-// deliberately non-commensurate (ratio ≈ 2.27, not 2.00) so diagonal
-// cells don't collapse onto identical combined lightness values.
+// Neutrals (chroma below this) have no chroma family to ramp through, so
+// their column axis becomes a literal temperature ramp: a cool (bluish)
+// cast left of the answer, a warm (amber) cast right of it. That's how
+// designers make gray palettes readable, and it keeps the "muted/cool →
+// vivid/warm" column story true even for grays.
 const NEUTRAL_CHROMA_THRESHOLD = 0.03;
-const NEUTRAL_STEP_L_ROW = 0.05;
-const NEUTRAL_STEP_L_COL = 0.022;
+const NEUTRAL_COOL_HUE = 250;
+const NEUTRAL_WARM_HUE = 55;
+const NEUTRAL_TEMP_STEP = 0.016;
+const NEUTRAL_TEMP_MAX = 0.05;
 
-// Lightness bounds (avoid pure black / pure white clipping).
-const L_MIN = 0.05;
+// Low-chroma (but not fully neutral) colors — browns, dusty pastels — get a
+// wider forced spread. They can't drift out of their family no matter how
+// far the ramp walks, so bigger steps are pure clarity with no risk.
+const LOW_CHROMA_THRESHOLD = 0.09;
+
+// Lightness bounds. The floor is well above OKLab's black point: below
+// L ≈ 0.14 the sRGB gamut collapses to a handful of near-black pixels, so
+// ramp steps and dedup nudges all quantize onto the same hex down there.
+// Keeping cells out of that dead zone matters more than reaching pure black
+// — the feasibility snap pins very dark answers near the bottom rows
+// instead.
+const L_MIN = 0.14;
 const L_MAX = 0.95;
+
+// Smallest acceptable lightness gap between adjacent rows (≈ 2.2 ΔE). Used
+// both to size ramps and to decide which answer rows are feasible for a
+// given base color (see snapToFeasible).
+const STEP_L_FLOOR = 0.022;
+
+// "No sore thumb" guard: the steps on either side of the answer row/column
+// may differ (a pale character has little room above), but never by more
+// than this ratio — a visible kink in the gradient at the answer's row
+// would give the position away.
+const STEP_RATIO_CAP = 2.5;
+
+// Constant per-column lightness tilt. This is the structural guarantee that
+// columns stay distinguishable even when the chroma ramp collapses (palest
+// row of a vivid character, neutral grays): every column carries its own
+// small L offset. Constant per column, so each column remains strictly
+// monotonic in L down the rows. The inflate cap lets the retry loop lean on
+// the tilt when chroma and hue have no room left (saturated yellows at the
+// gamut ceiling).
+const TILT_STEP = 0.008;
+const TILT_INFLATE_CAP = 4;
+
+// Column hue sweep: rotated toward the warm pole on the right, away on the
+// left, at a fraction of the hue JND per column and hard-capped so the
+// vivid columns never leave the answer's color family.
+const WARM_POLE_HUE = 70;
+const COL_HUE_FACTOR = 0.6;
+const COL_HUE_SWEEP_CAP = 1.5;
+
+// Column chroma ramp works in chroma-fraction space (C / maxChromaAt) so the
+// ramp survives gamut variation across rows. The floor keeps decoys in the
+// same family (a saturated red never fades to gray); the ceiling stops short
+// of the gamut edge where everything clips to the same color.
+const F_FLOOR_OF_BASE = 0.30;
+const F_FLOOR_MIN = 0.04;
+const F_CEIL = 0.97;
 
 // ΔE invariants enforced on every generated grid. Values are on the
 // conventional ΔE scale where ~2 is a just-noticeable difference.
 //
-// The "correct max" is hue-family aware: for low-chroma or extreme-L
-// colors (Ice King, Bugs Bunny), decoys are allowed to be much more
-// saturated or much darker than the correct, because the player's task
-// reframes as "pick the right shade of blue" rather than "pick the
-// exact pale blue." Constraining the ceiling tight for pales just
-// collapses the grid into 16 near-identical swatches; opening it lets
-// the row axis sweep through the whole blue family.
-const DELTA_E_PAIR_MIN = 2.0;
-const DELTA_E_CORRECT_MIN = 2.5;
-function deltaECorrectMaxFor({ C, L }) {
-  // Saturated mid-L colors: tight ceiling — wide spread reads as a
-  // different color family. Low-chroma or extreme-L colors: loose
-  // ceiling — they need room to spread through their hue family.
-  const extremeL = L > 0.85 || L < 0.30;
-  if (C < 0.04 || extremeL) return 30.0;
-  if (C < 0.09) return 22.0;
-  return 16.0;
-}
+// An ordered grid only needs its *neighbors* distinguishable (the whole
+// board legitimately spans 20-30 ΔE corner to corner — the corners ARE the
+// pale/deep/vivid/muted family variants), so the strong floor applies to
+// adjacent pairs and a weak floor to all pairs. Low-chroma boards get a
+// raised adjacent floor — neutrals can't leave their family, so a wider
+// spread is pure clarity and prevents "every shade looks the same".
+const DELTA_E_ADJACENT_MIN = 2.0;
+const DELTA_E_ADJACENT_MIN_LOW_CHROMA = 2.8;
+const DELTA_E_ANY_MIN = 1.0;
+
+// Sore-thumb guard: each of the answer's 4-neighbors must sit within
+// NEIGHBOR_MAX_RATIO × the adjacent floor — the steps around the answer
+// must not be wildly bigger than steps elsewhere. (The relative kink at
+// the answer is bounded separately by STEP_RATIO_CAP in the ramps.)
+const NEIGHBOR_MAX_RATIO = 3.2;
+
 const MAX_ATTEMPTS = 8;
 const INFLATE_PER_ATTEMPT = 1.25;
 
 // Linearly interpolate hue-specific JND steps for the given OKLCH base.
-// No chroma damping: `assignOffsets` already scales steps to fit available
-// chroma headroom, so near-neutrals get the right behavior automatically.
 function jndStepsFor({ H }) {
   const hue = ((H % 360) + 360) % 360;
   const bin = 360 / JND_TABLE.length;
@@ -267,9 +313,8 @@ function jndStepsFor({ H }) {
 }
 
 // Euclidean distance in OKLab, scaled by 100 to land on the conventional
-// ΔE axis (~2 = just noticeable). Used to validate that generated grids
-// meet the perceptibility invariants.
-function deltaE(hex1, hex2) {
+// ΔE axis (~2 = just noticeable). Exported for the verify scripts.
+export function deltaE(hex1, hex2) {
   const [L1, a1, b1] = linearRgbToOklab(hexToLinearRgb(hex1));
   const [L2, a2, b2] = linearRgbToOklab(hexToLinearRgb(hex2));
   const dL = L1 - L2;
@@ -278,257 +323,168 @@ function deltaE(hex1, hex2) {
   return Math.sqrt(dL * dL + da * da + db * db) * 100;
 }
 
-// Inspect the grid against all three ΔE invariants. Reports separately
-// whether the ramp is too tight (floor violated: cells too similar) or
-// too spread (ceiling violated: a decoy reads as a different color
-// family). The retry loop uses this signal to decide whether to inflate
-// or deflate the step magnitudes — exponentially climbing in one
-// direction would overshoot in the other.
-//
-// `score` is the total magnitude of violations: smaller is better. Used
-// to pick the best-of-attempts grid when no attempt passes cleanly.
-function inspectGrid(cells, correctHex, ceilingMax) {
-  const flat = cells.flat();
-  let floorViolation = 0;
-  let ceilingViolation = 0;
-  for (let i = 0; i < flat.length; i++) {
-    const cell = flat[i];
-    if (!cell.isCorrect) {
-      const d = deltaE(cell.hex, correctHex);
-      if (d < DELTA_E_CORRECT_MIN) {
-        floorViolation += DELTA_E_CORRECT_MIN - d;
-      }
-      // Memory anchors are deliberate perceptual variants of correct and
-      // sit further away by design (a pale-cream Pikachu is ~25-35 ΔE
-      // from saturated yellow Pikachu). Exempt them from the ceiling
-      // check; the anchor builder already bounds them inside the same
-      // color family via chroma floor + ±25° hue cap.
-      if (cell.source !== 'anchor' && d > ceilingMax) {
-        ceilingViolation += d - ceilingMax;
-      }
-    }
-    for (let j = i + 1; j < flat.length; j++) {
-      const d = deltaE(cell.hex, flat[j].hex);
-      if (d < DELTA_E_PAIR_MIN) {
-        floorViolation += DELTA_E_PAIR_MIN - d;
-      }
-    }
-  }
-  return {
-    ok: floorViolation === 0 && ceilingViolation === 0,
-    floorViolation,
-    ceilingViolation,
-    score: floorViolation + ceilingViolation,
-  };
+// For pale or low-chroma colors the ramp is allowed (and encouraged) to
+// span a much wider slice of the family — "other shades of brown" rather
+// than "other near-identical tans". Boost the lightness step so the first
+// attempt already produces a visible spread.
+function lowChromaBoostFor(C) {
+  if (C < 0.05) return 1.8;
+  if (C < 0.08) return 1.5;
+  if (C < 0.12) return 1.2;
+  return 1.0;
 }
 
-// Choose a sorted set of signed offsets for an axis of `n` cells with the
-// correct cell at `correctIdx`. Cells fan out from correct in monotone
-// order: rank `i - correctIdx` becomes the offset multiplier, then the
-// step is multiplied in. Result reads as a smooth ramp (the original
-// "gradient" feel) because the offsets are NOT shuffled.
-//
-// Two orientations exist — ascending (positive offsets above correctIdx)
-// and descending (negative above). Pick whichever fits the available
-// headroom best; if neither fits at the full step, shrink the step
-// proportionally so the spread fits in the tighter direction.
-function assignOffsets(rng, n, correctIdx, baseStep, upRoom, downRoom) {
-  const negCount = correctIdx;
-  const posCount = n - 1 - correctIdx;
-  if (negCount === 0 && posCount === 0) return [0];
+function adjacentFloorFor(base) {
+  // The raised floor is for mid-lightness browns and grays, where the whole
+  // family is available to spread through. Pale pastels and very dark muted
+  // colors are ALSO low-chroma but sit against the gamut edge — demanding
+  // the wide spread there just leaves the retry loop chasing an impossible
+  // target.
+  const midL = base.L >= 0.35 && base.L <= 0.80;
+  return base.C < LOW_CHROMA_THRESHOLD && midL
+    ? DELTA_E_ADJACENT_MIN_LOW_CHROMA
+    : DELTA_E_ADJACENT_MIN;
+}
 
-  // Effective step multiplier (≤ 1) that fits the direction. Each
-  // orientation needs `needUp` units of room above and `needDown` below.
-  function fitFor(needUp, needDown) {
-    let s = 1;
-    if (needUp > 0) s = Math.min(s, upRoom / needUp);
-    if (needDown > 0) s = Math.min(s, downRoom / needDown);
-    return s;
+// The daily rotation can force the answer onto any cell, but a near-white
+// character has no room for paler rows above it (and a near-black none
+// below). Snap the forced index to the nearest feasible one — the largest
+// row count that still fits floor-sized lightness gaps in each direction.
+// Pure function of the base color, so it stays deterministic and identical
+// for every player.
+function snapToFeasible(idx, n, roomUp, roomDown, floorStep) {
+  const maxAbove = Math.floor(roomUp / floorStep);
+  const maxBelow = Math.floor(roomDown / floorStep);
+  const lo = Math.max(0, (n - 1) - maxBelow);
+  const hi = Math.min(n - 1, maxAbove);
+  if (lo > hi) {
+    // Pathological color with almost no lightness room at all — pin to the
+    // edge with more room rather than failing.
+    return roomUp >= roomDown ? Math.min(n - 1, Math.max(0, maxAbove)) : Math.max(0, (n - 1) - Math.max(0, maxBelow));
   }
-  const ascFit = fitFor(posCount, negCount);
-  const descFit = fitFor(negCount, posCount);
+  return clamp(idx, lo, hi);
+}
 
-  let flip;
-  if (ascFit > descFit + 0.001) flip = false;
-  else if (descFit > ascFit + 0.001) flip = true;
-  else flip = rng() < 0.5;
+// Step sizes on either side of the answer index: as close to baseStep as
+// the available room allows, never below floorStep when the room can fit
+// it. With `capRatio` the two sides are also kept within STEP_RATIO_CAP of
+// each other (the row-axis sore-thumb guard). The column axis skips the
+// cap: at the gamut edge the vivid side's room is structurally ~zero, and
+// capping the muted side to match would flatten the whole chroma ramp —
+// the hue sweep + lightness tilt hide the seam, and the sore-thumb
+// validation still checks the result.
+function fitSteps(baseStep, nNeg, nPos, roomNeg, roomPos, floorStep, capRatio = true) {
+  let stepNeg = nNeg > 0 ? Math.min(baseStep, roomNeg / nNeg) : 0;
+  let stepPos = nPos > 0 ? Math.min(baseStep, roomPos / nPos) : 0;
+  if (floorStep > 0) {
+    if (nNeg > 0) stepNeg = Math.max(Math.min(floorStep, roomNeg / nNeg), stepNeg);
+    if (nPos > 0) stepPos = Math.max(Math.min(floorStep, roomPos / nPos), stepPos);
+  }
+  if (capRatio && nNeg > 0 && nPos > 0 && stepNeg > 0 && stepPos > 0) {
+    const hi = Math.max(stepNeg, stepPos);
+    const lo = Math.min(stepNeg, stepPos);
+    if (hi / lo > STEP_RATIO_CAP) {
+      if (stepNeg > stepPos) stepNeg = stepPos * STEP_RATIO_CAP;
+      else stepPos = stepNeg * STEP_RATIO_CAP;
+    }
+  }
+  return { stepNeg, stepPos };
+}
 
-  const stepMult = Math.min(1, flip ? descFit : ascFit);
-  const step = Math.max(0.003, baseStep * stepMult);
+// Per-column lightness tilts. Normally linear: the paler side of the
+// answer column points toward the roomier lightness direction, with
+// per-side step sizes (each side uses the room it actually has, ratio-
+// capped so the kink at the answer column stays invisible). When one side
+// has essentially no room (near-white or near-black answers), the tilt
+// folds: every column tilts toward the roomy direction, magnitude growing
+// with distance from the answer column. Returns the tilt array plus the
+// room each lightness direction consumes, so the row ramp can reserve it.
+const MIN_TILT = 0.012;
+function columnTilts(cols, correctCol, availUp, availDown, inflate) {
+  const want = TILT_STEP * Math.min(inflate, TILT_INFLATE_CAP);
+  const posCols = cols - 1 - correctCol;
+  const negCols = correctCol;
+  const maxAbsCol = Math.max(posCols, negCols);
+  const dirTilt = availUp >= availDown ? 1 : -1;
+  const upCols = dirTilt > 0 ? posCols : negCols;
+  const downCols = dirTilt > 0 ? negCols : posCols;
+  let stepUp = upCols > 0 ? Math.min(want, Math.max(0, availUp) / upCols) : 0;
+  let stepDown = downCols > 0 ? Math.min(want, Math.max(0, availDown) / downCols) : 0;
 
-  const offsets = new Array(n);
-  for (let i = 0; i < n; i++) {
-    const rank = i - correctIdx;
-    offsets[i] = (flip ? -rank : rank) * step;
+  // Fold when the cramped side can't carry meaningful movement — both
+  // sides walk toward the roomy direction instead of one side sitting
+  // nearly flat (a flat side produces duplicate or illegibly-close
+  // swatches for gamut-edge answers).
+  const tilt = new Array(cols).fill(0);
+  if (upCols > 0 && stepUp < MIN_TILT && availDown > availUp) {
+    const step = maxAbsCol > 0 ? Math.min(want, Math.max(0, availDown) / maxAbsCol) : 0;
+    for (let j = 0; j < cols; j++) tilt[j] = -Math.abs(j - correctCol) * step;
+    return { tilt, upExtent: 0, downExtent: step * maxAbsCol };
+  }
+  if (downCols > 0 && stepDown < MIN_TILT && availUp > availDown) {
+    const step = maxAbsCol > 0 ? Math.min(want, Math.max(0, availUp) / maxAbsCol) : 0;
+    for (let j = 0; j < cols; j++) tilt[j] = Math.abs(j - correctCol) * step;
+    return { tilt, upExtent: step * maxAbsCol, downExtent: 0 };
+  }
+
+  // Linear: bound the side asymmetry (sore-thumb guard at the answer col).
+  if (stepUp > 0 && stepDown > 0) {
+    const hi = Math.max(stepUp, stepDown);
+    const lo = Math.min(stepUp, stepDown);
+    if (hi / lo > STEP_RATIO_CAP) {
+      if (stepUp > stepDown) stepUp = stepDown * STEP_RATIO_CAP;
+      else stepDown = stepUp * STEP_RATIO_CAP;
+    }
+  }
+  for (let j = 0; j < cols; j++) {
+    const dj = j - correctCol;
+    if (dj === 0) continue;
+    const paler = (dj > 0) === (dirTilt > 0);
+    tilt[j] = (paler ? 1 : -1) * Math.abs(dj) * (paler ? stepUp : stepDown);
+  }
+  return { tilt, upExtent: stepUp * upCols, downExtent: stepDown * downCols };
+}
+
+// Strictly ascending offsets for one axis: 0 at `idx`, negative below it,
+// positive above. Gap sizes are jittered (±10%) but ordering never changes,
+// so monotonicity holds by construction. Gaps are rescaled down if jitter
+// would overflow the available room.
+function monotonicOffsets(rng, n, idx, stepNeg, stepPos, roomNeg, roomPos) {
+  const gen = (count, step, room) => {
+    const gaps = [];
+    let sum = 0;
+    for (let k = 0; k < count; k++) {
+      const g = step * (GAP_JITTER_LO + rng() * (GAP_JITTER_HI - GAP_JITTER_LO));
+      gaps.push(g);
+      sum += g;
+    }
+    if (sum > room && sum > 0) {
+      const s = room / sum;
+      for (let k = 0; k < gaps.length; k++) gaps[k] *= s;
+    }
+    return gaps;
+  };
+  const below = gen(idx, stepNeg, roomNeg);
+  const above = gen(n - 1 - idx, stepPos, roomPos);
+  const offsets = new Array(n).fill(0);
+  let acc = 0;
+  for (let k = idx - 1; k >= 0; k--) {
+    acc += below[idx - 1 - k];
+    offsets[k] = -acc;
+  }
+  acc = 0;
+  for (let k = idx + 1; k < n; k++) {
+    acc += above[k - idx - 1];
+    offsets[k] = acc;
   }
   return offsets;
 }
 
-function jitter(rng, base) {
-  return base * (JITTER_LO + rng() * (JITTER_HI - JITTER_LO));
-}
-
-// --- Memory anchors -----------------------------------------------------
-//
-// Curated perceptual variants of the correct color. Each anchor is a
-// "plausible memory" — a deeper-golden Pikachu, a pale-cream Pikachu, a
-// mustard Pikachu, a lemon Pikachu — that always sits inside the same
-// broad color family.
-//
-// Margins on the floor checks: anchors are frozen (never nudged in
-// dedup), so we keep them comfortably above the global ΔE floors to
-// leave headroom for floating-point and gamut clamping.
-const ANCHOR_FLOOR_MARGIN = 1.0;
-const ANCHOR_HUE_SHIFT_MIN = 18;
-const ANCHOR_HUE_SHIFT_MAX = 25;
-const ANCHOR_TARGET = 5;
-
-function memoryAnchorsFor(base, rng) {
-  const isNeutral = base.C < NEUTRAL_CHROMA_THRESHOLD;
-  const effLMin = Math.min(L_MIN, base.L);
-  const effLMax = Math.max(L_MAX, base.L);
-  const upRoom = effLMax - base.L;
-  const downRoom = base.L - effLMin;
-
-  // Build a candidate pool of transformations. Order matters — earlier
-  // candidates have priority when too many would otherwise collide. The
-  // pale-cream / deep-rich pair is the user-requested core; hue shifts
-  // and the vivid pop fill out the "memory variants" feel.
-  const candidates = [];
-
-  // Chromatic colors get pale-cream / deep-rich regardless of L headroom:
-  // even when L is clamped (e.g. Pikachu at L≈0.92 has only ~0.03 upRoom),
-  // the chroma drop from saturated to ~45% reads as a clearly creamier
-  // memory of the character. The ΔE filter at the end of this function
-  // drops candidates that didn't get enough perceptual movement.
-  // Neutrals don't have chroma to fall back on, so they need the L-room
-  // guard to avoid emitting a duplicate of correct.
-  if (!isNeutral || upRoom > 0.04) {
-    candidates.push({
-      L: base.L + Math.min(0.18, Math.max(0, upRoom)),
-      C: isNeutral ? base.C : base.C * 0.45,
-      H: base.H,
-      kind: 'pale-cream',
-    });
-  }
-  if (!isNeutral || downRoom > 0.04) {
-    const L = base.L - Math.min(0.18, Math.max(0, downRoom));
-    candidates.push({
-      L,
-      C: isNeutral ? base.C : Math.min(maxChromaAt(L, base.H), base.C * 1.25 + 0.02),
-      H: base.H,
-      kind: 'deep-rich',
-    });
-  }
-
-  if (!isNeutral) {
-    const warmShift = ANCHOR_HUE_SHIFT_MIN + rng() * (ANCHOR_HUE_SHIFT_MAX - ANCHOR_HUE_SHIFT_MIN);
-    const coolShift = ANCHOR_HUE_SHIFT_MIN + rng() * (ANCHOR_HUE_SHIFT_MAX - ANCHOR_HUE_SHIFT_MIN);
-    const warmH = (base.H + warmShift + 360) % 360;
-    const coolH = (base.H - coolShift + 360) % 360;
-    candidates.push({
-      L: base.L,
-      C: Math.min(base.C, maxChromaAt(base.L, warmH) * 0.95),
-      H: warmH,
-      kind: 'warm-shift',
-    });
-    candidates.push({
-      L: base.L,
-      C: Math.min(base.C, maxChromaAt(base.L, coolH) * 0.95),
-      H: coolH,
-      kind: 'cool-shift',
-    });
-    // Vivid pop — same hue but pushed toward gamut. Skipped for already-
-    // saturated colors where pushing chroma further changes nothing.
-    if (base.C < 0.18) {
-      candidates.push({
-        L: base.L,
-        C: Math.min(maxChromaAt(base.L, base.H), base.C * 1.3 + 0.03),
-        H: base.H,
-        kind: 'vivid-pop',
-      });
-    }
-  } else {
-    // Neutrals: a third lightness variant in each direction, no hue
-    // rotation since there's no chromatic family to drift toward.
-    if (upRoom > 0.06) {
-      candidates.push({
-        L: base.L + Math.min(0.10, upRoom),
-        C: base.C,
-        H: base.H,
-        kind: 'paler',
-      });
-    }
-    if (downRoom > 0.06) {
-      candidates.push({
-        L: base.L - Math.min(0.10, downRoom),
-        C: base.C,
-        H: base.H,
-        kind: 'darker',
-      });
-    }
-  }
-
-  // Secondary lightness variants — used as backups if a primary anchor
-  // had to be dropped at gamut edges (extreme-L correct colors).
-  if (!isNeutral && upRoom > 0.06) {
-    candidates.push({
-      L: base.L + Math.min(0.10, upRoom),
-      C: base.C * 0.70,
-      H: base.H,
-      kind: 'softer',
-    });
-  }
-  if (!isNeutral && downRoom > 0.06) {
-    candidates.push({
-      L: base.L - Math.min(0.10, downRoom),
-      C: Math.min(maxChromaAt(base.L - Math.min(0.10, downRoom), base.H), base.C * 1.10),
-      H: base.H,
-      kind: 'muted-deep',
-    });
-  }
-
-  const correctHex = hexFromOklch(base.L, base.C, base.H);
-  const kept = [];
-  for (const cand of candidates) {
-    const hex = hexFromOklch(cand.L, cand.C, cand.H);
-    if (deltaE(hex, correctHex) < DELTA_E_CORRECT_MIN + ANCHOR_FLOOR_MARGIN) continue;
-    if (kept.some(k => deltaE(hex, k.hex) < DELTA_E_PAIR_MIN + ANCHOR_FLOOR_MARGIN)) continue;
-    kept.push({ hex, kind: cand.kind });
-    if (kept.length >= ANCHOR_TARGET) break;
-  }
-  return kept;
-}
-
-// Pick the cells on the grid farthest from the correct cell (Chebyshev
-// distance) so anchors land on the visual perimeter and the ramp fills
-// the inner ring. Ties broken by Euclidean distance then by seeded rng
-// so the layout still varies round-to-round.
-function pickAnchorPositions(rows, cols, correctRow, correctCol, count, rng) {
-  if (count <= 0) return [];
-  const positions = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      if (r === correctRow && c === correctCol) continue;
-      const dr = r - correctRow;
-      const dc = c - correctCol;
-      positions.push({
-        r, c,
-        cheb: Math.max(Math.abs(dr), Math.abs(dc)),
-        euc: dr * dr + dc * dc,
-        rand: rng(),
-      });
-    }
-  }
-  positions.sort((a, b) => b.cheb - a.cheb || b.euc - a.euc || a.rand - b.rand);
-  return positions.slice(0, count);
-}
-
 // Single attempt at building a grid. The retry loop in `buildGrid` calls
 // this with increasing `inflate` until the ΔE invariants are met. The
-// correct-cell position is fixed by `seed` (NOT mixed with attempt) so
-// the player doesn't see the answer jump position between retries on the
-// same round.
+// correct-cell position is fixed by `seed` + the feasibility snap (NOT
+// mixed with attempt) so the player doesn't see the answer jump position
+// between retries on the same round.
 function generateGridOnce(correctHex, opts, inflate) {
   const { rows, cols, baseSeed, forcedRow, forcedCol, attempt } = opts;
   const base = oklchFromHex(correctHex);
@@ -544,105 +500,122 @@ function generateGridOnce(correctHex, opts, inflate) {
     ? forcedCol
     : Math.floor(posRng() * cols);
 
-  // If base.L is at the gamut extreme (pure white, pure black), the
-  // symmetric ramp can't fit cells on both sides — there's no upward
-  // headroom past L=1.0 or downward past L=0.0. `assignOffsets` would
-  // collapse step to its minimum, making every cell collide. Pin the
-  // correct cell to whichever edge of the grid lets all decoys live in
-  // the available direction. The player still sees a random column.
-  if (!Number.isInteger(forcedRow)) {
-    if (base.L > 0.97) correctRow = 0;
-    else if (base.L < 0.05) correctRow = rows - 1;
-  }
-
   const isNeutral = base.C < NEUTRAL_CHROMA_THRESHOLD;
   // Effective lightness bounds: never tighter than the base color itself.
-  // If base.L sits above L_MAX (e.g. pure white) or below L_MIN (e.g.
-  // pure black), the fixed clamp would collapse multiple cells onto the
-  // same value. Letting the bound extend to base.L preserves cell
-  // identity at the extremes.
+  // If base.L sits above L_MAX (e.g. pure white) or below L_MIN, the fixed
+  // clamp would collapse multiple cells onto the same value.
   const effLMin = Math.min(L_MIN, base.L);
   const effLMax = Math.max(L_MAX, base.L);
   const steps = jndStepsFor(base);
+  const boost = lowChromaBoostFor(base.C);
 
-  // For pale or low-chroma colors (Ice King, Bugs Bunny, Jigglypuff),
-  // the decoys are allowed to span a much wider slice of the hue family
-  // — "other shades of blue" rather than "other near-identical pales."
-  // Boost the base row step so the first attempt already produces a
-  // visible L spread instead of waiting for the retry loop to inflate.
-  let lowChromaBoost = 1.0;
-  if (isNeutral) {
-    lowChromaBoost = 1.8;
-  } else if (base.C < 0.05) {
-    lowChromaBoost = 1.8;
-  } else if (base.C < 0.08) {
-    lowChromaBoost = 1.5;
-  } else if (base.C < 0.12) {
-    lowChromaBoost = 1.2;
-  }
+  const rawUp = effLMax - base.L;
+  const rawDown = base.L - effLMin;
 
-  // Row offsets vary lightness. Headroom is distance to the effective
-  // L bounds, measured in step units.
-  const baseRowStepL = isNeutral ? NEUTRAL_STEP_L_ROW : steps.stepL;
-  const stepL = jitter(stepRng, baseRowStepL * lowChromaBoost) * inflate;
-  const lUpRoom = (effLMax - base.L) / stepL;
-  const lDownRoom = (base.L - effLMin) / stepL;
-  const rowDeltaL = assignOffsets(stepRng, rows, correctRow, stepL, lUpRoom, lDownRoom);
-
-  // Column axis: chroma + hue. We anchor on the base hue whenever the
-  // color has ANY chromatic signal (even Bugs Bunny's C=0.008 carries
-  // direction — he's a cool grey, not a warm one), and only seed a
-  // random hue for the absolutely pure-neutral edge case. For low-chroma
-  // colors we synthesize a small chroma so the column has a perceptual
-  // dimension to walk, and the hue step stays modest so decoys don't
-  // drift into a different color family.
-  const SYNTH_C_FLOOR = 0.018;
-  const isLowChroma = base.C < 0.04;
-  const colC = isLowChroma ? Math.max(base.C, SYNTH_C_FLOOR) : base.C;
-  const colH = base.C > 0.002 ? base.H : posRng() * 360;
-  const colStepsSrc = isLowChroma
-    ? { stepC: SYNTH_C_FLOOR * 0.9, stepH: 12 }
-    : steps;
-  const stepC = jitter(stepRng, colStepsSrc.stepC * lowChromaBoost) * inflate;
-  // Hue is intentionally NOT inflated. Unlike L and C, hue has no gamut
-  // clamp, so multiplying it by `inflate` just rotates decoys out of the
-  // color family (SpongeBob yellow → mint green, etc.). Whenever the
-  // retry loop needs more spread, it should get it from L and C, not
-  // by abandoning the answer's hue.
-  const stepH = jitter(stepRng, colStepsSrc.stepH);
-  const cMax = maxChromaAt(base.L, colH);
-  // Keep decoys in the same color family by capping how far chroma can
-  // drop. For saturated colors (SpongeBob yellow, Courage pink), letting
-  // chroma slide to zero turns decoys into olive/grey — readable as a
-  // different color. A floor at 50% of base chroma preserves family
-  // identity while still giving the column axis room to vary.
-  const cFamilyFloor = isLowChroma ? 0 : base.C * 0.5;
-  const cUpRoom = stepC > 0 ? Math.max(0, (cMax - colC) / stepC) : 0;
-  const cDownRoom = stepC > 0 ? Math.max(0, (colC - cFamilyFloor) / stepC) : 0;
-  const colDeltaC = stepC > 0
-    ? assignOffsets(stepRng, cols, correctCol, stepC, cUpRoom, cDownRoom)
-    : new Array(cols).fill(0);
-
-  // Hue offsets. We deliberately don't widen stepH when chroma is gamut-
-  // bound — boosting hue past its zone value (e.g. yellow's tight 5°)
-  // pushes decoys into the neighboring family (yellow→green for
-  // SpongeBob). Better to accept a slightly tighter rank-1 ΔE than to
-  // misrepresent the color. Hue can rotate either way (no clamp).
-  const colDeltaH = assignOffsets(stepRng, cols, correctCol, stepH, 4, 4);
-
-  // Small column lightness offset so cells in the correctRow don't all
-  // share L = base.L. At gamut extremes (#FFFFFF, near-black, very
-  // saturated colors near the chroma ceiling) the chroma+hue column
-  // variation gets clipped, collapsing the correctRow into near-
-  // identical cells. A modest column-L step (≈30% of the row step)
-  // gives each cell in the correctRow its own L value, restoring
-  // perceptual distinction without breaking the gradient feel.
-  const stepLcol = stepL * 0.3;
-  const colDeltaL = assignOffsets(
-    stepRng, cols, correctCol, stepLcol,
-    Math.max(0, (effLMax - base.L - stepL * (rows - 1)) / stepLcol),
-    Math.max(0, (base.L - effLMin - stepL * (rows - 1)) / stepLcol),
+  // Feasibility snap uses the un-inflated tilt extents so the answer
+  // position is stable across retry attempts (columnTilts' layout choice
+  // only depends on the room split, which doesn't change with inflate).
+  const snapTilts = columnTilts(cols, correctCol, rawUp, rawDown, 1);
+  correctRow = snapToFeasible(
+    correctRow, rows,
+    Math.max(0, rawUp - snapTilts.upExtent),
+    Math.max(0, rawDown - snapTilts.downExtent),
+    STEP_L_FLOOR,
   );
+
+  // The tilt budget is what's left after reserving floor-sized lightness
+  // gaps for the rows on each side of the (now snapped) answer row — so a
+  // forced edge answer can pour the unused side's room into the tilt.
+  const tiltAvailUp = Math.max(0, rawUp - correctRow * STEP_L_FLOOR);
+  const tiltAvailDown = Math.max(0, rawDown - (rows - 1 - correctRow) * STEP_L_FLOOR);
+  const { tilt, upExtent, downExtent } = columnTilts(cols, correctCol, tiltAvailUp, tiltAvailDown, inflate);
+  const roomUp = Math.max(0, rawUp - upExtent);
+  const roomDown = Math.max(0, rawDown - downExtent);
+
+  // Row axis: lightness, palest at row 0. Offsets ascend with the row
+  // index, so L(i) = base.L - offset(i) descends monotonically. The step is
+  // capped just under the sore-thumb neighbor ceiling (with margin for the
+  // per-gap jitter) — without the cap, edge-snapped answers with lots of
+  // spare room produce one giant step that the validator then rejects,
+  // leaving the retry loop oscillating instead of converging.
+  const adjacentFloor = adjacentFloorFor(base);
+  const maxRowStep = (adjacentFloor * NEIGHBOR_MAX_RATIO * 0.85) / 100;
+  const baseRowStep = Math.min(steps.stepL * boost * inflate, maxRowStep);
+  const rowFit = fitSteps(
+    baseRowStep,
+    correctRow, rows - 1 - correctRow,
+    roomUp, roomDown,
+    STEP_L_FLOOR,
+  );
+  const rowOffsets = monotonicOffsets(
+    stepRng, rows, correctRow,
+    rowFit.stepNeg, rowFit.stepPos,
+    roomUp, roomDown,
+  );
+
+  // Column axis: chroma fraction (muted left → vivid right) + a hue sweep
+  // toward the warm pole + the per-column lightness tilt.
+  let colFractions = null;
+  let colHueDelta = null;
+  let neutralC = null;
+  let neutralH = null;
+  if (isNeutral) {
+    // Temperature ramp: cool cast left of the answer, warm cast right. The
+    // family cap is applied by rescaling the step (so the farthest column
+    // lands exactly on the cap) rather than clamping per cell — clamping
+    // would collapse all the outer columns onto the same chroma.
+    const maxAbsSide = Math.max(correctCol, cols - 1 - correctCol);
+    let tempStep = NEUTRAL_TEMP_STEP * inflate;
+    if (maxAbsSide > 0) {
+      tempStep = Math.min(tempStep, Math.max(0, NEUTRAL_TEMP_MAX - base.C) / maxAbsSide);
+    }
+    neutralC = new Array(cols);
+    neutralH = new Array(cols);
+    for (let j = 0; j < cols; j++) {
+      const dj = j - correctCol;
+      neutralC[j] = dj === 0 ? base.C : base.C + Math.abs(dj) * tempStep;
+      neutralH[j] = dj < 0 ? NEUTRAL_COOL_HUE : dj > 0 ? NEUTRAL_WARM_HUE : base.H;
+    }
+  } else {
+    const cMaxBase = Math.max(1e-6, maxChromaAt(base.L, base.H));
+    const fBase = clamp(base.C / cMaxBase, 0, 1);
+    const fFloor = Math.min(fBase, Math.max(fBase * F_FLOOR_OF_BASE, F_FLOOR_MIN));
+    const roomRight = Math.max(0, F_CEIL - fBase);
+    const roomLeft = Math.max(0, fBase - fFloor);
+    // Cap the chroma step at ~1.75× the adjacent floor. When the vivid side
+    // is gamut-pinned, inflation would otherwise pour everything into the
+    // muted side and put a visible kink right at the answer column.
+    const maxColStepF = (adjacentFloor * 1.75) / 100 / cMaxBase;
+    const baseColStep = Math.min((steps.stepC / cMaxBase) * inflate, maxColStepF);
+    // No floor and no feasibility snap on the column axis: when a saturated
+    // answer leaves no chroma headroom, the hue sweep + lightness tilt keep
+    // the columns distinguishable (validated below), and not snapping
+    // avoids leaking the answer column for saturated characters.
+    const colFit = fitSteps(baseColStep, correctCol, cols - 1 - correctCol, roomLeft, roomRight, 0, /*capRatio*/ false);
+    const fOffsets = monotonicOffsets(
+      stepRng, cols, correctCol,
+      colFit.stepNeg, colFit.stepPos,
+      roomLeft, roomRight,
+    );
+    colFractions = fOffsets.map(o => clamp(fBase + o, 0, 1));
+
+    // Hue rotates toward the warm pole (OKLCH ≈ 70°) on the right, away on
+    // the left, taking the short way around the circle. Deliberately NOT
+    // inflated — widening hue past its JND just rotates decoys out of the
+    // color family (SpongeBob yellow → mint green).
+    const warmDelta = (((WARM_POLE_HUE - base.H) % 360) + 540) % 360 - 180;
+    const hueSign = warmDelta >= 0 ? 1 : -1;
+    // Rescale (don't clamp) when the full sweep would exceed the family
+    // cap — clamping would zero the hue difference between outer columns.
+    let stepHCol = steps.stepH * COL_HUE_FACTOR;
+    const hueCap = steps.stepH * COL_HUE_SWEEP_CAP;
+    const maxAbsCol = Math.max(correctCol, cols - 1 - correctCol);
+    if (maxAbsCol * stepHCol > hueCap) stepHCol = hueCap / maxAbsCol;
+    colHueDelta = new Array(cols);
+    for (let j = 0; j < cols; j++) {
+      colHueDelta[j] = hueSign * (j - correctCol) * stepHCol;
+    }
+  }
 
   const cells = [];
   for (let r = 0; r < rows; r++) {
@@ -658,9 +631,15 @@ function generateGridOnce(correctHex, opts, inflate) {
         });
         continue;
       }
-      const L = clamp(base.L + rowDeltaL[r] + colDeltaL[c], effLMin, effLMax);
-      const C = Math.max(0, colC + colDeltaC[c]);
-      const H = colH + colDeltaH[c];
+      const L = clamp(base.L - rowOffsets[r] + tilt[c], effLMin, effLMax);
+      let C, H;
+      if (isNeutral) {
+        C = neutralC[c];
+        H = neutralH[c];
+      } else {
+        H = base.H + colHueDelta[c];
+        C = colFractions[c] * maxChromaAt(L, H);
+      }
       row.push({
         row: r,
         col: c,
@@ -673,66 +652,38 @@ function generateGridOnce(correctHex, opts, inflate) {
     cells.push(row);
   }
 
-  // Overlay memory anchors on the cells farthest from correct. The anchor
-  // RNG is forked from the stable seed (not mixed with the retry attempt)
-  // so anchor identities and positions are deterministic across retries
-  // — the ramp inflates around them, never replacing them.
-  const anchorRng = mulberry32(baseSeed * 2654435761 + 53);
-  const anchors = memoryAnchorsFor(base, anchorRng);
-  if (anchors.length > 0) {
-    const anchorPositions = pickAnchorPositions(rows, cols, correctRow, correctCol, anchors.length, anchorRng);
-    for (let i = 0; i < anchorPositions.length; i++) {
-      const { r, c } = anchorPositions[i];
-      const target = cells[r][c];
-      target.hex = anchors[i].hex.toUpperCase();
-      target.source = 'anchor';
-      target.anchorKind = anchors[i].kind;
-    }
-  }
-
-  // Final dedup pass: pathological cases (pure white at L=1.0 with zero
-  // chroma headroom, etc.) can produce two cells with nearly-identical
-  // perceptual color even after the structural fixes — the gamut clamp
-  // collapses everything to the same near-white when L is extreme. Walk
-  // the cells and nudge L by a small per-cell salt until each cell is
-  // perceptibly distinct (>1 ΔE) from every prior cell. The nudges are
-  // small (≤ 0.04 L) but guarantee distinguishable swatches — duplicate
-  // or near-duplicate cells would break the game outright.
+  // Final dedup pass: pathological cases (near-white answers with zero
+  // chroma headroom, dark colors where the gamut clamp flattens whole
+  // regions, diagonal row-step/tilt cancellations) can still produce two
+  // cells with nearly-identical perceptual color. Walk the cells and nudge
+  // L by a small per-cell salt until each cell is perceptibly distinct
+  // (>1 ΔE) from every prior cell. The nudges are small (≤ 0.04 L) and only
+  // fire in regions where the ramp is already flat, so the ordered-gradient
+  // read survives — duplicate or near-duplicate cells would break the game
+  // outright.
   const SEP_MIN = 1.0;
   const NUDGE_STEP = 0.006;
-  const NUDGE_MAX = 0.04;
+  const NUDGE_MAX = 0.06;
   const flat = cells.flat();
-  // Seed `accepted` with the correct cell + every anchor up front. Both
-  // are frozen perceptual values — the dedup loop must respect them as
-  // immovable, only nudging ramp cells that collide. Without this seed,
-  // a ramp cell iterated before the correct or an anchor wouldn't see
-  // it during the collision check (extreme-L Brain white in particular
-  // gamut-clips ramp cells to pure white, creating duplicates of the
-  // answer).
   const correctCell = flat.find(c => c.isCorrect);
-  const accepted = [];
-  if (correctCell) accepted.push(correctCell);
+  const accepted = correctCell ? [correctCell] : [];
   for (const cell of flat) {
-    if (cell !== correctCell && cell.source === 'anchor') accepted.push(cell);
-  }
-  for (const cell of flat) {
-    if (cell === correctCell || cell.source === 'anchor') {
-      delete cell.L; delete cell.C; delete cell.H;
-      continue;
-    }
+    if (cell === correctCell) continue;
     let nudge = 0;
-    let attempt = 0;
-    const tooClose = () => accepted.some(p => p !== cell && deltaE(p.hex, cell.hex) < SEP_MIN);
+    let bump = 0;
+    const tooClose = () => accepted.some(p => deltaE(p.hex, cell.hex) < SEP_MIN);
     while (tooClose() && nudge <= NUDGE_MAX) {
-      attempt++;
+      bump++;
       // Walk nudge magnitude outward, alternating direction so the
       // dedup explores both lighter and darker than the original L.
-      nudge = Math.ceil(attempt / 2) * NUDGE_STEP;
-      const dir = (attempt % 2 === 1) ? -1 : 1;
+      nudge = Math.ceil(bump / 2) * NUDGE_STEP;
+      const dir = (bump % 2 === 1) ? -1 : 1;
       const newL = clamp(cell.L + dir * nudge, effLMin, effLMax);
       cell.hex = hexFromOklch(newL, cell.C, cell.H);
     }
     accepted.push(cell);
+  }
+  for (const cell of flat) {
     delete cell.L;
     delete cell.C;
     delete cell.H;
@@ -741,11 +692,99 @@ function generateGridOnce(correctHex, opts, inflate) {
   return { cells, correctRow, correctCol, rows, cols };
 }
 
+// Inspect an ordered grid against the ΔE invariants. Reports separately
+// whether the ramp is too tight (floor violated: neighbors too similar) or
+// the answer sticks out (ceiling violated: the steps around the answer are
+// out of scale with the rest of the board). The retry loop uses this signal
+// to decide whether to inflate or deflate the step magnitudes.
+//
+// `score` is the total magnitude of violations: smaller is better. Used to
+// pick the best-of-attempts grid when no attempt passes cleanly.
+function inspectOrderedGrid(grid, adjacentFloor) {
+  const { cells, correctRow, correctCol, rows, cols } = grid;
+  // Precompute OKLab per cell — 25 cells get compared a few hundred times.
+  const lab = cells.map(row => row.map(c => linearRgbToOklab(hexToLinearRgb(c.hex))));
+  const dist = (a, b) => {
+    const dL = a[0] - b[0], da = a[1] - b[1], db = a[2] - b[2];
+    return Math.sqrt(dL * dL + da * da + db * db) * 100;
+  };
+
+  let floorViolation = 0;
+  let ceilingViolation = 0;
+
+  // Strong floor on adjacent pairs (the steps the player actually
+  // compares), tracked per axis — vertical (lightness) steps are
+  // legitimately larger than horizontal (vividness) ones, so the
+  // sore-thumb comparison below must stay within an axis.
+  const adjacentH = [];
+  const adjacentV = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (c + 1 < cols) {
+        const d = dist(lab[r][c], lab[r][c + 1]);
+        adjacentH.push(d);
+        if (d < adjacentFloor) floorViolation += adjacentFloor - d;
+      }
+      if (r + 1 < rows) {
+        const d = dist(lab[r][c], lab[r + 1][c]);
+        adjacentV.push(d);
+        if (d < adjacentFloor) floorViolation += adjacentFloor - d;
+      }
+    }
+  }
+
+  // Weak floor on every pair — a duplicate swatch anywhere breaks the game.
+  const flat = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) flat.push(lab[r][c]);
+  for (let i = 0; i < flat.length; i++) {
+    for (let j = i + 1; j < flat.length; j++) {
+      const d = dist(flat[i], flat[j]);
+      if (d < DELTA_E_ANY_MIN) floorViolation += DELTA_E_ANY_MIN - d;
+    }
+  }
+
+  // Sore-thumb ceiling around the answer: an absolute cap on how big the
+  // steps to the answer's own neighbors may be. The *relative* kink at the
+  // answer is already bounded structurally — both ramps cap the asymmetry
+  // of their two sides at STEP_RATIO_CAP — so no scale-invariant ratio
+  // check is needed here (one was tried; it just fights the floor).
+  const neighborMax = adjacentFloor * NEIGHBOR_MAX_RATIO;
+  const correctLab = lab[correctRow][correctCol];
+  for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+    const r = correctRow + dr;
+    const c = correctCol + dc;
+    if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
+    const d = dist(correctLab, lab[r][c]);
+    if (d > neighborMax) ceilingViolation += d - neighborMax;
+  }
+
+  return {
+    ok: floorViolation === 0 && ceilingViolation === 0,
+    floorViolation,
+    ceilingViolation,
+    score: floorViolation + ceilingViolation,
+  };
+}
+
+// Annotate every cell with its ΔE from the answer (drives the proximity
+// glow) and its Chebyshev ring distance (drives proximity scoring), so the
+// game and UI never need to re-import color math.
+function annotate(grid, correctHex) {
+  const { cells, correctRow, correctCol } = grid;
+  for (const row of cells) {
+    for (const cell of row) {
+      cell.dE = cell.isCorrect ? 0 : deltaE(cell.hex, correctHex);
+      cell.ring = Math.max(Math.abs(cell.row - correctRow), Math.abs(cell.col - correctCol));
+    }
+  }
+  return grid;
+}
+
 export function buildGrid(
   correctHex,
   {
-    rows = 4,
-    cols = 4,
+    rows = 5,
+    cols = 5,
     seed = 0,
     correctRow: forcedRow = null,
     correctCol: forcedCol = null,
@@ -753,15 +792,15 @@ export function buildGrid(
 ) {
   const opts = { rows, cols, baseSeed: seed, forcedRow, forcedCol, attempt: 0 };
   const base = oklchFromHex(correctHex);
-  const ceilingMax = deltaECorrectMaxFor(base);
+  const adjacentFloor = adjacentFloorFor(base);
   let inflate = 1.0;
   let best = null;
   let bestScore = Infinity;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     opts.attempt = attempt;
     const grid = generateGridOnce(correctHex, opts, inflate);
-    const insp = inspectGrid(grid.cells, correctHex, ceilingMax);
-    if (insp.ok) return grid;
+    const insp = inspectOrderedGrid(grid, adjacentFloor);
+    if (insp.ok) return annotate(grid, correctHex);
     if (insp.score < bestScore) {
       best = grid;
       bestScore = insp.score;
@@ -776,5 +815,5 @@ export function buildGrid(
       inflate /= INFLATE_PER_ATTEMPT;
     }
   }
-  return best;
+  return annotate(best, correctHex);
 }

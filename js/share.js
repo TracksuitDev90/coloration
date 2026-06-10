@@ -4,7 +4,19 @@
 // unused/skipped, green for a correct guess, red for a wrong guess.
 // N varies per row (3 for grid, 1 for quad).
 
-import { maxGuessesFor } from './game.js';
+import { maxGuessesFor, ringScore } from './game.js';
+
+// Day score for a grid snapshot: proximity points over played, non-skipped
+// rounds. Works for live snapshots (round.score persisted) and for decoded
+// share payloads (score reconstructed in snapshotFromPayload).
+function gridDayScore(snapshot) {
+  let total = 0;
+  for (const r of snapshot?.rounds || []) {
+    if (r.skipped || !(r.won || r.lost)) continue;
+    total += Number.isFinite(r.score) ? r.score : (r.won ? 100 : 0);
+  }
+  return total;
+}
 
 const W = 1080;
 const H = 1080;
@@ -19,7 +31,9 @@ const BOX_COLORS = {
   empty: '#1a1d24',
   emptyStroke: '#2c333f',
   correct: '#3ccb7f',   // 🟩
-  wrong: '#e04a4a',     // 🟥
+  wrong: '#e04a4a',     // 🟥 — far miss (or any quad miss)
+  near: '#e8c33c',      // 🟨 — one ring from the answer
+  close: '#e08a3c',     // 🟧 — two rings from the answer
 };
 
 const CARD_BG = '#171c25';
@@ -208,7 +222,10 @@ function drawColumn(ctx, snapshot, label, x, y, w, h) {
 
   const rounds = snapshot?.rounds || [];
   const wins = rounds.filter(r => r.won).length;
-  drawSmallScorePill(ctx, `${wins} / ${rounds.length}`, innerRight, y + colPad - 2);
+  const pill = snapshot?.mode === 'grid'
+    ? `${gridDayScore(snapshot)} pts`
+    : `${wins} / ${rounds.length}`;
+  drawSmallScorePill(ctx, pill, innerRight, y + colPad - 2);
 
   // Played rows fill the rest of the column.
   const playedRounds = rounds
@@ -419,8 +436,12 @@ function drawHeader(ctx, snapshot) {
   ctx.font = '600 28px "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillText(modeLabel, PADDING, 180);
 
-  // Score pill on the right, aligned with the date/mode block.
-  drawScorePill(ctx, `${wonCount} / ${total}`, W - PADDING, 168);
+  // Score pill on the right, aligned with the date/mode block. Grid runs
+  // brag in proximity points; items stay binary wins.
+  const pill = snapshot.mode === 'grid'
+    ? `${gridDayScore(snapshot)} pts`
+    : `${wonCount} / ${total}`;
+  drawScorePill(ctx, pill, W - PADDING, 168);
 }
 
 function drawScorePill(ctx, text, right, top) {
@@ -475,6 +496,7 @@ function drawFooter(ctx, dayStreak = 0) {
 function drawLegend(ctx, right, top) {
   const items = [
     { color: BOX_COLORS.correct, label: 'Correct' },
+    { color: BOX_COLORS.near, label: 'Close' },
     { color: BOX_COLORS.wrong, label: 'Wrong' },
     { color: BOX_COLORS.empty, label: 'Skipped', stroke: BOX_COLORS.emptyStroke },
   ];
@@ -682,6 +704,15 @@ function drawInitials(ctx, name, x, y, size) {
   ctx.textBaseline = 'top';
 }
 
+// Wrong guesses on grid rounds are colored by their proximity to the
+// answer (the guess record carries its ring distance). Old payloads and
+// quad rounds have no ring and fall back to plain red.
+function missColor(guess) {
+  if (guess.ring === 1) return BOX_COLORS.near;
+  if (guess.ring === 2) return BOX_COLORS.close;
+  return BOX_COLORS.wrong;
+}
+
 function drawGuessBox(ctx, round, idx, x, y, size) {
   const guess = round.guesses[idx];
   const radius = Math.max(10, Math.floor(size * 0.18));
@@ -690,7 +721,7 @@ function drawGuessBox(ctx, round, idx, x, y, size) {
   } else if (guess.correct) {
     drawSolidBox(ctx, x, y, size, radius, BOX_COLORS.correct);
   } else {
-    drawSolidBox(ctx, x, y, size, radius, BOX_COLORS.wrong);
+    drawSolidBox(ctx, x, y, size, radius, missColor(guess));
   }
 }
 
@@ -818,12 +849,32 @@ export async function shareCanvas(canvas, snapshot, { dayStreak = 0 } = {}) {
   return { kind: 'downloaded' };
 }
 
-// Emoji-only share — black box default, green for correct, red for wrong.
-// Matches the user-spec "Color Guesser" header and one line per character.
-// Only completed rounds are listed so a partial run doesn't dump empty rows.
-// Long runs collapse into a single emoji ribbon so the share text stays
-// scannable in a tweet or DM.
+// Emoji-only share — black box default, green for correct, and misses
+// colored by proximity on grid rounds: 🟨 one ring away, 🟧 two rings,
+// 🟥 farther (and any quad miss — those carry no ring). Only completed
+// rounds are listed so a partial run doesn't dump empty rows. Long runs
+// collapse into a single emoji ribbon so the share text stays scannable
+// in a tweet or DM.
 const TEXT_COMPACT_THRESHOLD = 12;
+
+function missGlyph(g) {
+  if (g.ring === 1) return '🟨';
+  if (g.ring === 2) return '🟧';
+  return '🟥';
+}
+
+// One glyph per round: exact find, or the closest miss's proximity color.
+function roundGlyph(r) {
+  if (r.won) return '🟩';
+  if (r.lost) {
+    const best = Math.min(...r.guesses.map(g => (Number.isInteger(g.ring) ? g.ring : 9)));
+    if (best === 1) return '🟨';
+    if (best === 2) return '🟧';
+    return '🟥';
+  }
+  return '⬛';
+}
+
 export function shareText(snapshot, { dayStreak = 0 } = {}) {
   // A 2+ day run is worth bragging about alongside the result; a single day
   // would just read as filler, so it stays off the text.
@@ -831,17 +882,17 @@ export function shareText(snapshot, { dayStreak = 0 } = {}) {
   const played = snapshot.rounds
     .map((r, i) => ({ r, i }))
     .filter(({ r }) => r.won || r.lost || r.skipped);
+  const isGrid = snapshot.mode === 'grid';
 
   if (played.length > TEXT_COMPACT_THRESHOLD) {
-    const ribbon = played.map(({ r }) => {
-      if (r.won) return '🟩';
-      if (r.lost) return '🟥';
-      return '⬛';
-    }).join('');
+    const ribbon = played.map(({ r }) => roundGlyph(r)).join('');
     const wins = played.filter(({ r }) => r.won).length;
+    const scoreLine = isGrid
+      ? `${gridDayScore(snapshot)} pts`
+      : `${wins} / ${played.length}`;
     return [
       'Coloration',
-      `${wins} / ${played.length}`,
+      scoreLine,
       ...streakLine,
       '',
       ribbon,
@@ -856,11 +907,12 @@ export function shareText(snapshot, { dayStreak = 0 } = {}) {
     const cells = Array.from({ length: max }, (_, k) => {
       const g = r.guesses[k];
       if (!g) return '⬛';
-      return g.correct ? '🟩' : '🟥';
+      return g.correct ? '🟩' : missGlyph(g);
     }).join('');
     return `${c?.name ?? '???'}: ${cells}`;
   });
-  return ['Coloration', ...streakLine, '', ...lines].join('\n');
+  const scoreLine = isGrid ? [`${gridDayScore(snapshot)} pts`] : [];
+  return ['Coloration', ...scoreLine, ...streakLine, '', ...lines].join('\n');
 }
 
 // Combined text share — emoji ribbon for both modes side by side. Used when
@@ -877,7 +929,9 @@ export function combinedShareText({ items, grid }, { dayStreak = 0 } = {}) {
       .filter(({ r }) => r.won || r.lost || r.skipped);
     const wins = played.filter(({ r }) => r.won).length;
     const label = snap.mode === 'items' ? 'Items' : 'Characters';
-    lines.push(`${label}: ${wins} / ${played.length}`);
+    lines.push(snap.mode === 'grid'
+      ? `${label}: ${gridDayScore(snap)} pts`
+      : `${label}: ${wins} / ${played.length}`);
     for (const { r, i } of played) {
       // Same guard as shareText: never print "undefined:" for a snapshot
       // whose rounds outnumber its characters.
@@ -886,7 +940,7 @@ export function combinedShareText({ items, grid }, { dayStreak = 0 } = {}) {
       const cells = Array.from({ length: max }, (_, k) => {
         const g = r.guesses[k];
         if (!g) return '⬛';
-        return g.correct ? '🟩' : '🟥';
+        return g.correct ? '🟩' : missGlyph(g);
       }).join('');
       lines.push(`  ${c?.name ?? '???'}: ${cells}`);
     }
@@ -918,6 +972,9 @@ export function shareLinkUrl(snapshot) {
           c: g.correct ? 1 : 0,
           ...(Number.isInteger(g.row) ? { r: g.row, x: g.col } : {}),
           ...(Number.isInteger(g.index) ? { i: g.index } : {}),
+          // Proximity ring (grid misses) — lets the read-only view recolor
+          // guesses and rebuild scores. Optional, so old links still decode.
+          ...(Number.isInteger(g.ring) ? { n: g.ring } : {}),
         })),
         w: r.won ? 1 : 0,
         l: r.lost ? 1 : 0,
@@ -980,17 +1037,32 @@ export function snapshotFromPayload(payload, allCharacters) {
   const byId = new Map(allCharacters.map(c => [c.id, c]));
   const characters = payload.c.map(id => byId.get(id)).filter(Boolean);
   if (characters.length !== payload.c.length) return null;
-  const rounds = payload.r.map((r, i) => ({
-    charId: characters[i].id,
-    guesses: (r.g || []).map(g => ({
+  const rounds = payload.r.map((r, i) => {
+    const guesses = (r.g || []).map(g => ({
       correct: !!g.c,
       ...(Number.isInteger(g.r) ? { row: g.r, col: g.x } : {}),
       ...(Number.isInteger(g.i) ? { index: g.i } : {}),
-    })),
-    won: !!r.w,
-    lost: !!r.l,
-    skipped: !!r.s,
-  }));
+      ...(Number.isInteger(g.n) ? { ring: g.n } : {}),
+    }));
+    // Rebuild the proximity score from the rings so the shared card's pill
+    // matches the sender's (payloads don't carry the score itself).
+    const won = !!r.w;
+    const lost = !!r.l;
+    let score;
+    if (payload.m !== 'items' && (won || lost)) {
+      score = won
+        ? ringScore(0)
+        : Math.max(0, ...guesses.map(g => ringScore(g.ring)));
+    }
+    return {
+      charId: characters[i].id,
+      guesses,
+      won,
+      lost,
+      skipped: !!r.s,
+      ...(Number.isFinite(score) ? { score } : {}),
+    };
+  });
   return {
     date: payload.d,
     mode: payload.m || 'grid',

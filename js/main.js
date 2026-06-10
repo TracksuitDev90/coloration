@@ -22,8 +22,8 @@ import { initTitleBlob } from './blob.js';
 
 initTitleBlob();
 
-const COL_LABELS = ['A', 'B', 'C', 'D'];
-const GRID_SIZE = 4;
+const COL_LABELS = ['A', 'B', 'C', 'D', 'E'];
+const GRID_SIZE = 5;
 // TEMP: daily limit lifted so the whole roster surfaces in a single day for
 // accuracy verification. Infinity makes the selection draw every entry (capped
 // to the pool size), and the round chip already drops its "/ N" suffix when
@@ -56,11 +56,14 @@ const STORAGE_LAST_VISIT = 'wcat:v5:last-visit';
 // zero under the new meaning rather than inheriting guess-based numbers.
 const STORAGE_DAY_STREAK = 'wcat:v2:dayStreak';
 
-// One-time cleanup of the retired guess-streak keys so stale numbers don't
-// linger in localStorage.
+// One-time cleanup of retired keys so stale numbers don't linger in
+// localStorage: the old guess-streak counters, and the v5 daily slot whose
+// 4x4 saves can't resume against the 5x5 ordered grid (the day streak in
+// wcat:v2:dayStreak is untouched — only the in-progress run resets).
 try {
   localStorage.removeItem('wcat:v3:bestStreak');
   localStorage.removeItem('wcat:v1:dayStreak');
+  localStorage.removeItem('wcat:v5:daily');
 } catch { /* private mode — nothing to clear */ }
 
 function recordDayCompletion(key) {
@@ -132,6 +135,7 @@ const els = {
   countdown: document.getElementById('countdown'),
   characterCard: document.getElementById('character-card'),
   roundChip: document.getElementById('round-chip'),
+  scoreChip: document.getElementById('score-chip'),
   streakChip: document.getElementById('streak-chip'),
   bestChip: document.getElementById('best-chip'),
   guessesChip: document.getElementById('guesses-chip'),
@@ -492,72 +496,20 @@ function renderHeaders() {
     `<span class="hdr" data-row="${i}">${i + 1}</span>`).join('');
 }
 
-function clearHints() {
-  for (const h of document.querySelectorAll('.hdr--hint-negative')) {
-    h.classList.remove('hdr--hint-negative');
-  }
-}
-
-// After two wrong guesses, mark one row OR column as "not the answer". The
-// player goes from 16 → 12 candidates without the previous behavior's
-// failure mode where a row-match and column-match together pinpointed the
-// exact cell. Choice of which axis and which row/col is seeded so it stays
-// stable across reloads.
-function applyNegativeHint() {
-  const s = game.snapshot();
-  if (s.board.kind !== 'grid') return;
-  const { correctRow, correctCol, rows, cols } = s.board;
-  const rng = hintRng(s);
-
-  // Candidate axes: a row/col is eligible if it is not the correct
-  // row/col. We prefer rows/cols the player hasn't guessed in yet —
-  // they're strictly new information. Fall back to any non-correct
-  // row/col if every non-correct one already has a wrong guess.
-  const guessedRows = new Set(s.wrongGuesses.map(w => w.row));
-  const guessedCols = new Set(s.wrongGuesses.map(w => w.col));
-  const fresh = (size, correct, guessed) => {
-    const all = [];
-    const preferred = [];
-    for (let i = 0; i < size; i++) {
-      if (i === correct) continue;
-      all.push(i);
-      if (!guessed.has(i)) preferred.push(i);
-    }
-    return preferred.length ? preferred : all;
-  };
-  const rowCandidates = fresh(rows, correctRow, guessedRows);
-  const colCandidates = fresh(cols, correctCol, guessedCols);
-
-  if (!rowCandidates.length && !colCandidates.length) return;
-  const useRow = !colCandidates.length
-    ? true
-    : !rowCandidates.length
-      ? false
-      : rng() < 0.5;
-  if (useRow) {
-    const r = rowCandidates[Math.floor(rng() * rowCandidates.length)];
-    els.rowHeaders
-      .querySelector(`.hdr[data-row="${r}"]`)
-      ?.classList.add('hdr--hint-negative');
-  } else {
-    const c = colCandidates[Math.floor(rng() * colCandidates.length)];
-    els.colHeaders
-      .querySelector(`.hdr[data-col="${c}"]`)
-      ?.classList.add('hdr--hint-negative');
-  }
-}
-
-// Seeded so the negative hint is identical across reloads within a round.
-function hintRng(s) {
-  const round = s.rounds[s.roundIndex];
-  let a = ((round?.seed ?? 0) ^ 0x9E3779B9) >>> 0;
-  return function () {
-    a = (a + 0x6D2B79F5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ t >>> 15, t | 1);
-    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
+// Silent proximity feedback: a missed swatch gets a temperature ring whose
+// hue, strength, and bloom track how close the guess was. Burning amber for
+// a near miss, a thin cool steel-blue rim for a far one. No words, no rows
+// crossed out — the ordered gradient plus the glow temperature is the hint.
+const GLOW_DE_NEAR = 2.5;
+const GLOW_DE_FAR = 16;
+function applyProximityGlow(btn, dE) {
+  if (!btn || !Number.isFinite(dE)) return;
+  const t = Math.min(1, Math.max(0, (dE - GLOW_DE_NEAR) / (GLOW_DE_FAR - GLOW_DE_NEAR)));
+  const mix = (a, b) => a + (b - a) * t;
+  btn.style.setProperty('--miss-h', String(Math.round(mix(38, 215))));
+  btn.style.setProperty('--miss-a', mix(0.95, 0.30).toFixed(2));
+  btn.style.setProperty('--miss-blur', `${Math.round(mix(14, 4))}px`);
+  btn.classList.add('cell--missed');
 }
 
 function isItemRound(s) {
@@ -621,7 +573,6 @@ function renderRound() {
   // under the board just repeated it. The status stays empty until it has
   // real state to report (guesses left, skip notice, streak).
   els.status.textContent = '';
-  clearHints();
 
   if (s.board.kind === 'quad') {
     renderQuadBoard(s);
@@ -629,17 +580,20 @@ function renderRound() {
     renderGridBoard(s);
   }
 
-  // Replay any saved guesses for this round so refreshing mid-puzzle keeps state.
+  // Replay any saved guesses for this round so refreshing mid-puzzle keeps
+  // state — including each miss's proximity glow (the guess records carry
+  // their ΔE, so no board math is needed here).
   for (const g of round.guesses) {
     const btn = guessButton(s, g);
     if (!btn) continue;
     btn.classList.add(g.correct ? 'cell--correct' : 'cell--wrong');
+    if (!g.correct && !s.revealed && s.board.kind === 'grid') {
+      applyProximityGlow(btn, g.dE);
+    }
   }
 
   if (s.revealed) {
     revealRound(/*announce*/ false, /*skipped*/ round.skipped);
-  } else if (s.board.kind === 'grid' && s.wrongGuesses.length >= 2) {
-    applyNegativeHint();
   }
 
   updateChips();
@@ -902,10 +856,12 @@ function submitGuess(pos, btn) {
     revealRound();
   } else if (result.kind === 'wrong') {
     btn.classList.add('cell--wrong');
+    if (result.cell && game.snapshot().board.kind === 'grid') {
+      applyProximityGlow(btn, result.cell.dE);
+    }
     navigator.vibrate?.(60);
     flash(els.photoFrame, 'shake');
     els.status.textContent = `Not quite. ${result.guessesLeft} guess${result.guessesLeft === 1 ? '' : 'es'} left.`;
-    if (result.guessesLeft === 1) applyNegativeHint();
     updateChips();
   } else if (result.kind === 'exhausted') {
     btn.classList.add('cell--wrong');
@@ -962,7 +918,17 @@ function revealRound(announce = true, skipped = false) {
     }
   }
 
-  els.status.textContent = skipped ? 'Skipped — here\'s the answer.' : '';
+  // Lost grid rounds report the proximity credit banked by the closest
+  // miss — "Close — 50 points" reads as a near miss, not a failure.
+  const round = s.rounds[s.roundIndex];
+  let statusText = '';
+  if (skipped) {
+    statusText = 'Skipped — here\'s the answer.';
+  } else if (round?.lost && s.board.kind === 'grid') {
+    const pts = Number.isFinite(round.score) ? round.score : 0;
+    statusText = pts > 0 ? `Close — ${pts} points.` : 'Not this time.';
+  }
+  els.status.textContent = statusText;
   els.skip.hidden = true;
   const hasNext = s.roundIndex < s.totalRounds - 1;
   if (!hasNext) {
@@ -998,6 +964,12 @@ function updateChips() {
   els.streakChip.textContent = `Streak ${day.streak}`;
   els.bestChip.textContent = `Best ${day.best}`;
   els.guessesChip.textContent = `Guesses ${s.guessesLeft}`;
+  // Proximity score chip — grid mode only; items stay binary win/lose.
+  if (els.scoreChip) {
+    const showScore = s.board?.kind === 'grid';
+    els.scoreChip.hidden = !showScore;
+    if (showScore) els.scoreChip.textContent = `Score ${s.dayScore}`;
+  }
   els.skipsChip.textContent = s.maxSkips >= 10
     ? 'Skip available'
     : `Skips ${s.skipsLeft}`;

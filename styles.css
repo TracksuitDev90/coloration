@@ -740,13 +740,13 @@ body {
 .col-headers {
   grid-row: 1; grid-column: 2;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: var(--gap);
 }
 .row-headers {
   grid-row: 2; grid-column: 1;
   display: grid;
-  grid-template-rows: repeat(4, 1fr);
+  grid-template-rows: repeat(5, 1fr);
   gap: var(--gap);
 }
 
@@ -770,28 +770,11 @@ body {
   transition: background 220ms var(--ease-out), color 220ms var(--ease-out), border-color 220ms var(--ease-out), box-shadow 220ms var(--ease-out);
 }
 
-/* Negative hint: this row/column is NOT the answer. Surfaced after the
-   second wrong guess — muted red with a strikethrough so it reads as
-   "ruled out" rather than "is the answer". Narrows 16 candidates to 12
-   without ever pinpointing the exact cell. */
-.hdr--hint-negative {
-  background: linear-gradient(180deg, rgba(60, 22, 24, 0.95), rgba(40, 14, 16, 0.95));
-  color: rgba(255, 170, 170, 0.55);
-  border-color: rgba(190, 70, 75, 0.55);
-  text-decoration: line-through;
-  text-decoration-thickness: 2px;
-  text-decoration-color: rgba(230, 110, 115, 0.85);
-  font-weight: 900;
-  box-shadow:
-    0 0 0 1px rgba(190, 70, 75, 0.35),
-    0 0 10px rgba(190, 70, 75, 0.35);
-}
-
 .grid {
   grid-row: 2; grid-column: 2;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: repeat(5, minmax(0, 1fr));
   min-height: 0;
   gap: var(--gap);
   padding: var(--gap);
@@ -901,6 +884,18 @@ body {
 /* Wrong: dim with X */
 .cell--wrong {
   cursor: default;
+}
+
+/* Silent proximity glow on missed grid swatches. JS sets the temperature
+   via CSS vars: a hot amber ring with a wide bloom for a near miss, a thin
+   cool steel-blue rim for a far one (see applyProximityGlow in main.js).
+   Grid-only — quad misses keep the plain X treatment. */
+.cell--missed {
+  box-shadow:
+    0 0 0 2px hsla(var(--miss-h, 215), 85%, 62%, var(--miss-a, 0.3)),
+    0 0 var(--miss-blur, 4px) hsla(var(--miss-h, 215), 90%, 60%, calc(var(--miss-a, 0.3) * 0.7)),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  z-index: 1;
 }
 .cell--wrong::after {
   content: '';
@@ -1419,7 +1414,7 @@ body {
     text-align: center;
   }
 
-  /* Centred square so the 4x4 cells stay square (not stretched) and the
+  /* Centred square so the 5x5 cells stay square (not stretched) and the
      board leaves room for the Skip/Next bar below it. */
   .board {
     /* No shrink: keep the square footprint even when the page overflows on a
@@ -1448,7 +1443,7 @@ body {
   }
 
   /* Slightly rectangular swatches (~1.35:1) on phones only. Overrides the base
-     .cell { aspect-ratio: 1/1 } for quad cells; the 4x4 character board uses
+     .cell { aspect-ratio: 1/1 } for quad cells; the 5x5 character board uses
      .grid .cell below and is unaffected. */
   .quad .cell {
     aspect-ratio: 1.35 / 1;

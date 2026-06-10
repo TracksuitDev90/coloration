@@ -140,6 +140,7 @@
     </h1>
     <div class="scoreboard" aria-live="polite">
       <span class="chip" id="round-chip">Round 1</span>
+      <span class="chip" id="score-chip" hidden>Score 0</span>
       <span class="chip chip--guesses" id="guesses-chip">Guesses 3</span>
       <span class="chip chip--skips" id="skips-chip">Skips</span>
       <span class="chip" id="streak-chip">Streak 0</span>
@@ -162,16 +163,16 @@
 
     <h2 class="character-title" id="character-name">&nbsp;</h2>
 
-    <!-- Each round shows exactly one of these boards. The grid (4x4 shade
-         picker, character round) and quad (4 swatches, item round) are
-         mutually exclusive — JS toggles `hidden` based on the round type
+    <!-- Each round shows exactly one of these boards. The grid (5x5 ordered
+         shade gradient, character round) and quad (4 swatches, item round)
+         are mutually exclusive — JS toggles `hidden` based on the round type
          so the player never sees both at once. Both start hidden so the
          first paint doesn't flash an empty board before JS runs. -->
     <section class="board" id="board" hidden aria-label="Color choices">
       <div class="board-corner" aria-hidden="true"></div>
       <div class="col-headers" id="col-headers" aria-hidden="true"></div>
       <div class="row-headers" id="row-headers" aria-hidden="true"></div>
-      <div class="grid" id="grid" role="grid" aria-label="4 by 4 color grid"></div>
+      <div class="grid" id="grid" role="grid" aria-label="5 by 5 color grid"></div>
     </section>
 
     <section class="quad" id="quad" hidden aria-label="Color choices"></section>
