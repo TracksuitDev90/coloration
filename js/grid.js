@@ -267,12 +267,22 @@ const COL_HUE_FACTOR = 0.6;
 const COL_HUE_SWEEP_CAP = 1.5;
 
 // Column chroma ramp works in chroma-fraction space (C / maxChromaAt) so the
-// ramp survives gamut variation across rows. The floor keeps decoys in the
-// same family (a saturated red never fades to gray); the ceiling stops short
-// of the gamut edge where everything clips to the same color.
-const F_FLOOR_OF_BASE = 0.30;
+// ramp survives gamut variation across rows. The floor keeps decoys firmly in
+// the family — at 50% of the answer's own saturation a corner-anchored grid
+// still reads as "the character's palette" rather than a washed pastel drift
+// (0.30 was tried; boards whose answer sat at the vivid/deep corner went
+// noticeably gray toward the far corner). The ceiling stops short of the
+// gamut edge where everything clips to the same color.
+const F_FLOOR_OF_BASE = 0.50;
 const F_FLOOR_MIN = 0.04;
 const F_CEIL = 0.97;
+
+// Cap on how far the pale rows may climb above the answer (in OKLab L).
+// Same motivation as the chroma floor: when the answer sits in a bottom
+// row, all four rows above are paler, and an uncapped climb washes the
+// board out. Scaled by the low-chroma boost — browns and grays are MEANT
+// to span a wide lightness range, so the cap loosens with the boost.
+const PALE_SPAN_MAX = 0.16;
 
 // ΔE invariants enforced on every generated grid. Values are on the
 // conventional ΔE scale where ~2 is a just-noticeable difference.
@@ -529,7 +539,14 @@ function generateGridOnce(correctHex, opts, inflate) {
   const tiltAvailUp = Math.max(0, rawUp - correctRow * STEP_L_FLOOR);
   const tiltAvailDown = Math.max(0, rawDown - (rows - 1 - correctRow) * STEP_L_FLOOR);
   const { tilt, upExtent, downExtent } = columnTilts(cols, correctCol, tiltAvailUp, tiltAvailDown, inflate);
-  const roomUp = Math.max(0, rawUp - upExtent);
+  // The pale-span cap applies to gap-building only (never to the
+  // feasibility snap above, so answer positions stay put): corner-anchored
+  // answers would otherwise climb so far toward white that the board reads
+  // washed-out instead of like the character's palette.
+  const roomUp = Math.min(
+    Math.max(0, rawUp - upExtent),
+    PALE_SPAN_MAX * boost,
+  );
   const roomDown = Math.max(0, rawDown - downExtent);
 
   // Row axis: lightness, palest at row 0. Offsets ascend with the row
