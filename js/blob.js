@@ -29,6 +29,12 @@ const DROP_LIFE = 2.6;
 const DROP_GAP_MIN = 2.4;
 const DROP_GAP_VAR = 4.5;
 
+// Redraw cap. Every update re-rasterizes the SVG goo filter (a blur plus a
+// colour matrix), and the drift is slow — well under a pixel per frame at the
+// header's size — so ~30 updates a second looks identical to 60/120 while
+// halving (or quartering, on 120Hz phones) the paint work over a session.
+const FRAME_MS = 1000 / 30;
+
 export function initTitleBlob() {
   const svg = document.querySelector('.title-blob');
   if (!svg) return;
@@ -48,7 +54,14 @@ export function initTitleBlob() {
   let dropAngle = Math.random() * TAU;
   let nextDropAt = dropStart + DROP_LIFE + DROP_GAP_MIN + Math.random() * DROP_GAP_VAR;
 
+  let lastPaint = -Infinity;
+
   function tick(now) {
+    raf = requestAnimationFrame(tick);
+    // 1ms of slack so a 60Hz display lands on every other frame rather than
+    // drifting between 2 and 3.
+    if (now - lastPaint < FRAME_MS - 1) return;
+    lastPaint = now;
     const t = (now - start) / 1000;
 
     for (let i = 0; i < 4; i++) {
@@ -86,8 +99,6 @@ export function initTitleBlob() {
     const dy = CENTER + Math.sin(dropAngle) * dist + wobbleY;
     circles[4].setAttribute('cx', dx.toFixed(2));
     circles[4].setAttribute('cy', dy.toFixed(2));
-
-    raf = requestAnimationFrame(tick);
   }
 
   let raf = requestAnimationFrame(tick);

@@ -27,10 +27,26 @@
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@700&family=Inter:wght@400;600;700;800;900&family=Manrope:wght@700;800&family=Outfit:wght@300;400;600&display=swap" />
+  <!-- Wordmark face (intro + title): preloaded so it's ready for the first
+       paint instead of swapping in mid-animation. The other fonts are
+       declared in styles.css with font-display: swap. -->
+  <link rel="preload" href="assets/fonts/cormorant-garamond-700-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="styles.css" />
+  <!-- Fetch the whole module graph and the two rosters in parallel with the
+       stylesheet. Without these the browser only discovers each import after
+       its parent module has downloaded and parsed — a chain of round trips
+       (main → its imports → their imports → the JSON → the photo) that took
+       seconds on a slow connection. share.js is left out on purpose: it's
+       loaded on demand for the end screen. -->
+  <link rel="modulepreload" href="js/main.js" />
+  <link rel="modulepreload" href="js/characters.js" />
+  <link rel="modulepreload" href="js/game.js" />
+  <link rel="modulepreload" href="js/daily.js" />
+  <link rel="modulepreload" href="js/grid.js" />
+  <link rel="modulepreload" href="js/quad.js" />
+  <link rel="modulepreload" href="js/blob.js" />
+  <link rel="preload" href="data/characters.json" as="fetch" crossorigin />
+  <link rel="preload" href="data/items.json" as="fetch" crossorigin />
 </head>
 <body>
   <!-- Intro loader: six thick colour strips slide in from the left one by one
@@ -102,15 +118,36 @@
       var REMOVE_AT = 3000;
       var revealTimer = setTimeout(function () { el.classList.add('loader-intro--out'); }, REVEAL_AT);
       var removeTimer = setTimeout(finish, REMOVE_AT);
+      var skipping = false;
       function finish() {
         clearTimeout(revealTimer);
         clearTimeout(removeTimer);
         if (el.parentNode) el.parentNode.removeChild(el);
       }
-      // A tap or keypress skips the rest of the show immediately — the intro
-      // should never stand between an impatient player and the puzzle.
-      el.addEventListener('pointerdown', finish);
-      window.addEventListener('keydown', finish, { once: true });
+      // A tap or keypress skips the rest of the show — the intro should never
+      // stand between an impatient player and the puzzle. The overlay catches
+      // the tap itself (it blocks pointer events until the reveal) and stays
+      // in place, fading out, until the finger lifts, so the press can never
+      // fall through and register as a guess on the board hidden underneath.
+      function skip(e) {
+        if (skipping || !el.parentNode) return;
+        skipping = true;
+        clearTimeout(revealTimer);
+        clearTimeout(removeTimer);
+        el.classList.add('loader-intro--skip');
+        var faded = false;
+        var lifted = !(e && e.type === 'pointerdown');
+        if (!lifted) {
+          if (e.cancelable) e.preventDefault();
+          try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+          var lift = function () { lifted = true; if (faded) finish(); };
+          el.addEventListener('pointerup', lift);
+          el.addEventListener('pointercancel', lift);
+        }
+        setTimeout(function () { faded = true; if (lifted) finish(); }, 200);
+      }
+      el.addEventListener('pointerdown', skip);
+      window.addEventListener('keydown', skip, { once: true });
     })();
   </script>
 
@@ -183,7 +220,7 @@
 
     <p class="countdown" id="countdown" aria-live="polite"></p>
 
-    <div class="actions">
+    <div class="actions" id="actions">
       <button id="skip-btn" class="btn btn--ghost" hidden>Skip</button>
       <button id="next-btn" class="btn btn--primary" hidden>Next round &rarr;</button>
     </div>
@@ -197,7 +234,6 @@
 
   <footer class="bottombar">
     <small>A new puzzle every day. Resets at UTC midnight.</small>
-    <button id="hard-reset-btn" class="btn btn--ghost btn--hard-reset" type="button">Hard reset</button>
     <small class="bottombar-legal">A fan-made puzzle. Character imagery &copy; its respective owners.</small>
   </footer>
 

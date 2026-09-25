@@ -29,10 +29,9 @@ const STORAGE_KEYS = {
 const GRID_MAX_GUESSES = 3;
 const QUAD_MAX_GUESSES = 1;
 const GRID_SIZE = 5;
-// TEMP: skip limit lifted for accuracy verification so every round can be
-// flipped through freely. The chip and skip button already collapse to plain
-// "Skip" labels for values >= 10. Restore to 2 to re-enable the daily budget.
-export const MAX_SKIPS_PER_MODE = Infinity;
+// Two skips per mode per day. The chip and skip button collapse to plain
+// "Skip" labels for values >= 10, so Infinity also works for accuracy passes.
+export const MAX_SKIPS_PER_MODE = 2;
 
 // Proximity scoring for grid rounds (0-100 per round). Finding the exact
 // cell scores full credit; a lost round still banks partial credit for the

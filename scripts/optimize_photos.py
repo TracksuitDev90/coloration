@@ -2,9 +2,9 @@
 
 The game ships full-resolution PNGs (some over 8 MB), which load slowly on
 congested or low-bandwidth connections. WebP encodes the same photo at a
-fraction of the bytes with no perceptible quality loss, so we ship a `.webp`
-alongside each `.png` and the runtime prefers it (falling back to the PNG on
-the rare browser without WebP support — see js/characters.js + js/main.js).
+fraction of the bytes with no perceptible quality loss, so the runtime loads
+the `.webp` (see js/characters.js) and only the WebPs are deployed — the PNGs
+are excluded from the GitHub Pages build in _config.yml.
 
 What this does per photo:
   1. Downscale so the long edge is at most MAX_EDGE px. The photo frame tops
@@ -14,16 +14,22 @@ What this does per photo:
   2. Re-encode to WebP at QUALITY (method 6 = slowest/smallest). Alpha is
      preserved so transparent-corner photos still composite cleanly over the
      dark frame.
+  3. If the result is still over BUDGET_BYTES (grainy or detailed sources),
+     step down through FALLBACK_STEPS — a smaller long edge and slightly lower
+     quality — until it fits. The frame never shows more than ~1280×960
+     device pixels, so 1280px loses nothing visible, and one heavy photo on a
+     slow connection is what the player waits on.
 
-The originals stay in assets/photos/ as the fallback and the source of truth;
-this script only ever writes the matching `.webp`. It's idempotent — a webp
+The originals stay in assets/photos/ as the source of truth; this script
+only ever writes the matching `.webp`. It's idempotent — a webp
 that's already newer than its png is skipped — so it's safe to re-run after
 adding new photos.
 
-Usage:  python3 scripts/optimize_photos.py
+Usage:  python3 scripts/optimize_photos.py [photo-name ...]
 Requires Pillow with WebP support (`pip install Pillow`).
 """
 
+import sys
 from pathlib import Path
 
 from PIL import Image
@@ -38,12 +44,31 @@ MAX_EDGE = 1600
 # ringing on the flat cartoon colour fields the game cares about.
 QUALITY = 82
 
+# Per-photo size budget, and the (long edge, quality) steps tried in order
+# when the first encode comes out over it.
+BUDGET_BYTES = 150 * 1024
+FALLBACK_STEPS = ((1280, 80), (1280, 74), (1024, 74))
 
-def optimize(png_path: Path) -> tuple[int, int] | None:
+
+def _encode(img: Image.Image, webp_path: Path, max_edge: int, quality: int) -> int:
+    w, h = img.size
+    long_edge = max(w, h)
+    if long_edge > max_edge:
+        scale = max_edge / long_edge
+        img = img.resize(
+            (round(w * scale), round(h * scale)),
+            Image.LANCZOS,
+        )
+    img.save(webp_path, "WEBP", quality=quality, method=6)
+    return webp_path.stat().st_size
+
+
+def optimize(png_path: Path, force: bool = False) -> tuple[int, int] | None:
     webp_path = png_path.with_suffix(".webp")
 
     # Idempotent: skip if an up-to-date webp already exists.
-    if webp_path.exists() and webp_path.stat().st_mtime >= png_path.stat().st_mtime:
+    if (not force and webp_path.exists()
+            and webp_path.stat().st_mtime >= png_path.stat().st_mtime):
         return None
 
     img = Image.open(png_path)
@@ -51,21 +76,19 @@ def optimize(png_path: Path) -> tuple[int, int] | None:
     if img.mode not in ("RGB", "RGBA"):
         img = img.convert("RGBA" if "A" in img.getbands() else "RGB")
 
-    w, h = img.size
-    long_edge = max(w, h)
-    if long_edge > MAX_EDGE:
-        scale = MAX_EDGE / long_edge
-        img = img.resize(
-            (round(w * scale), round(h * scale)),
-            Image.LANCZOS,
-        )
-
-    img.save(webp_path, "WEBP", quality=QUALITY, method=6)
-    return png_path.stat().st_size, webp_path.stat().st_size
+    size = _encode(img, webp_path, MAX_EDGE, QUALITY)
+    for max_edge, quality in FALLBACK_STEPS:
+        if size <= BUDGET_BYTES:
+            break
+        size = _encode(img, webp_path, max_edge, quality)
+    return png_path.stat().st_size, size
 
 
 def main() -> None:
-    pngs = sorted(PHOTO_DIR.glob("*.png"))
+    # Optional photo names (e.g. `shrek elmo`) re-encode just those, even if
+    # their webp is up to date — handy after changing the budget.
+    only = {name.removesuffix(".png") for name in sys.argv[1:]}
+    pngs = sorted(p for p in PHOTO_DIR.glob("*.png") if not only or p.stem in only)
     if not pngs:
         print(f"No PNGs found in {PHOTO_DIR}")
         return
@@ -73,7 +96,7 @@ def main() -> None:
     before_total = after_total = 0
     written = skipped = 0
     for png in pngs:
-        result = optimize(png)
+        result = optimize(png, force=bool(only))
         if result is None:
             skipped += 1
             # Still count its size so the totals reflect the whole shipped set.

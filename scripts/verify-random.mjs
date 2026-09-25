@@ -215,6 +215,28 @@ section('positionForRound uniformly covers the board', () => {
   console.log(`      quad  4-box distribution: ${quadCounts.join(',')}`);
 });
 
+// 5) The live quad config — four rounds a day on four swatches — must not
+//    repeat the same answer order every day (4 × step ≡ 0 mod 4 used to cancel
+//    the day term out of the walk). Each day's four rounds still use four
+//    distinct swatches, every box leads round 1 roughly equally often, and
+//    consecutive days don't all share one order.
+section('quad answer order varies day to day (4 rounds/day)', () => {
+  const DAYS = 400;
+  const firstSlot = new Array(4).fill(0);
+  const orders = new Set();
+  for (let day = 0; day < DAYS; day++) {
+    const order = [0, 1, 2, 3].map(slot => positionForRound(dayKey(day), slot, 4, 4));
+    assert.equal(new Set(order).size, 4, `day ${day}: rounds share a swatch (${order})`);
+    firstSlot[order[0]]++;
+    orders.add(order.join(''));
+  }
+  for (let i = 0; i < 4; i++) {
+    assert.ok(firstSlot[i] > DAYS / 4 * 0.7, `box ${i} leads round 1 only ${firstSlot[i]}/${DAYS} days`);
+  }
+  assert.ok(orders.size >= 20, `only ${orders.size} distinct daily orders over ${DAYS} days`);
+  console.log(`      round-1 box distribution over ${DAYS} days: ${firstSlot.join(',')}; ${orders.size}/24 orders seen`);
+});
+
 const failed = results.filter(r => !r.ok).length;
 console.log(failed ? `\n${failed} section(s) failed` : `\nAll ${results.length} sections passed`);
 process.exit(failed ? 1 : 0);

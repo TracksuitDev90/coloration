@@ -42,15 +42,26 @@ data/
   characters.json      - character roster
   items.json           - item roster
 assets/
-  photos/              - per-character photos (referenced from JSON)
+  photos/              - per-character photos: .webp served, .png masters (not deployed)
+  fonts/               - self-hosted woff2 fonts (OFL, see fonts/OFL.txt)
   favicon.svg          - source icon (PNG sizes derived from it)
   og-image.png         - social-share preview (1200×630)
-scripts/               - one-off Python/Node tooling for asset prep
+scripts/               - one-off Python/Node tooling for asset prep + verify scripts
+_config.yml            - GitHub Pages build: keeps photo sources and scripts out of the site
 ```
 
 ## Deploying
 
 The canonical URL (`https://tracksuitdev90.github.io/coloration`) is baked into `index.html`, `robots.txt`, and `sitemap.xml` — update all three if the site moves. The service worker is network-first for code and data, so deploys are picked up on the next online load; bump `VERSION` in `sw.js` to force-drop cached photos.
+
+GitHub Pages builds with Jekyll; `_config.yml` excludes the photo sources (`assets/IMG_*`, `assets/photos/*.png`) and `scripts/` from the published site, so only the WebPs the game loads are deployed.
+
+Before pushing changes to the board generators or the daily rotation, run the invariant checks:
+
+```bash
+node scripts/verify.mjs
+node scripts/verify-random.mjs
+```
 
 ## License
 

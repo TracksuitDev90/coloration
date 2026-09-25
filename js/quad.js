@@ -5,7 +5,7 @@
 // further around the hue wheel — but every swatch must still read as a
 // different tone family, so the player never sees two pinks or two blues.
 
-import { hexToHsl, hslToHex } from './grid.js';
+import { hexToHsl, hslToHex, deltaE } from './grid.js';
 
 // Saturated, recognizable cartoon colors spread around the hue wheel,
 // plus neutrals. Three distractors are picked from this list per round.
@@ -595,6 +595,11 @@ const PALETTES = {
 
 const BOX_COUNT = 4;
 
+// Minimum perceptual distance (OKLab ΔE, ~2 = just noticeable) between any
+// two swatches on a default-palette board. Themed palettes are hand-curated
+// and exempt, like they are from the tone-family filter.
+const QUAD_MIN_DELTA_E = 10;
+
 function mulberry32(seed) {
   let a = seed >>> 0;
   return function () {
@@ -750,8 +755,14 @@ export function buildQuad(correctHex, { seed = 0, palette, combo = null, correct
     .map(p => ({ ...p, dist: colorDistance(correct, p.hsl) }));
 
   const chosen = [{ hex: correctHex.toUpperCase(), hsl: correct }];
+  // Tone family alone isn't enough: a neutral always counts as "different"
+  // from a chromatic colour, so the synthesized near-black shade of a deep
+  // purple could sit beside the palette black (or a cream shade beside
+  // white) — two swatches that read as the same colour. The perceptual
+  // distance floor catches those pairs.
   const distinctFromChosen = (cand) =>
-    isThemed || chosen.every(c => distinctTone(cand.hsl, c.hsl));
+    isThemed || chosen.every(c =>
+      distinctTone(cand.hsl, c.hsl) && deltaE(cand.hex, c.hex) >= QUAD_MIN_DELTA_E);
   const alreadyPicked = (cand) =>
     chosen.some(c => c.hex === cand.hex);
 

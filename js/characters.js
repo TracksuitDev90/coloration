@@ -21,11 +21,8 @@ export async function loadCharacters() {
   return merged.map(c => ({
     ...c,
     imageSrc: resolveImage(c),
-    // Original PNG kept as a fallback for the rare browser without WebP
-    // support; the <img> swaps to it via onerror (see js/main.js).
-    imageFallback: c.image || null,
-    // Last-resort art if both the WebP and the PNG fail to load — the same
-    // initials card used for entries that ship without a photo at all.
+    // Fallback art if the photo fails to load — the same initials card used
+    // for entries that ship without a photo at all.
     imagePlaceholder: placeholderDataUri(c),
   }));
 }
@@ -82,11 +79,11 @@ function resolveImage(c) {
   return placeholderDataUri(c);
 }
 
-// Photos ship as optimized WebP alongside the source PNG (see
-// scripts/optimize_photos.py) — typically ~90% smaller, so they load fast on
-// slow or congested connections without a visible quality drop. Point the
-// runtime at the WebP; the PNG remains the fallback for browsers that can't
-// decode WebP.
+// Photos ship as optimized WebP encoded from the source PNG (see
+// scripts/optimize_photos.py) — typically ~95% smaller, so they load fast on
+// slow or congested connections without a visible quality drop. Every
+// supported browser decodes WebP, so only the WebP is deployed; the PNG
+// masters stay in the repo as encoder input (excluded in _config.yml).
 function preferWebp(src) {
   return src.replace(/\.png$/i, '.webp');
 }
