@@ -230,11 +230,25 @@ export function shuffleCharacters(allCharacters) {
 // to 11 explicitly: coprimeStep(25) would return 24 ≡ −1 (mod 25), which
 // walks the answer linearly backwards one cell per round — step 11 scatters
 // it about two rows and a column per round instead.
+//
+// When a whole day's stride is a multiple of the board size (four rounds on
+// the four-swatch quad: 4 × 3 ≡ 0 mod 4) the day term cancels out of the walk,
+// and every day would repeat the exact same answer order — round 1 always
+// top-left, and so on. Those boards instead deal a fresh seeded order of the
+// positions each day: still distinct within the day, still identical for every
+// player, but no longer learnable across days.
 export function positionForRound(dateKey, slotIndex, totalCells, slotsPerDay = CHARACTERS_PER_DAY) {
   if (!Number.isInteger(totalCells) || totalCells <= 0) return 0;
+  const step = totalCells === 25 ? 11 : totalCells === 16 ? 7 : totalCells === 4 ? 3 : coprimeStep(totalCells);
+  if ((slotsPerDay * step) % totalCells === 0) {
+    const order = shuffleSeeded(
+      Array.from({ length: totalCells }, (_, i) => i),
+      hashString(`position:${totalCells}:${dateKey}`),
+    );
+    return order[((slotIndex % totalCells) + totalCells) % totalCells];
+  }
   const dayIndex = Math.max(0, daysBetween(ROTATION_EPOCH, dateKey));
   const linear = dayIndex * slotsPerDay + slotIndex;
-  const step = totalCells === 25 ? 11 : totalCells === 16 ? 7 : totalCells === 4 ? 3 : coprimeStep(totalCells);
   return ((linear * step) % totalCells + totalCells) % totalCells;
 }
 

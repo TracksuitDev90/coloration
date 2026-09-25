@@ -8,32 +8,30 @@ import {
   formatCountdown,
 } from './daily.js';
 import { hexToHsl } from './grid.js';
-import {
-  renderShareCard,
-  renderCombinedShareCard,
-  shareCanvas,
-  shareText,
-  combinedShareText,
-  shareLinkUrl,
-  decodeSharePayload,
-  snapshotFromPayload,
-} from './share.js';
 import { initTitleBlob } from './blob.js';
+
+// share.js (share-card canvas rendering + link/emoji encoding, the largest
+// module) is only needed on the end screen or when opening a shared link, so
+// it loads on demand rather than sitting on every visit's critical path. It's
+// warmed at idle once the first round is on screen, so the end screen never
+// waits on it. `shareModule` is set once it has loaded — the share buttons
+// only exist on the finished screen, after showFinished() has awaited it.
+let shareModule = null;
+function loadShare() {
+  return import('./share.js').then(m => (shareModule = m));
+}
 
 initTitleBlob();
 
 const COL_LABELS = ['A', 'B', 'C', 'D', 'E'];
 const GRID_SIZE = 5;
-// TEMP: daily limit lifted so the whole roster surfaces in a single day for
-// accuracy verification. Infinity makes the selection draw every entry (capped
-// to the pool size), and the round chip already drops its "/ N" suffix when
-// the run is open-ended. Restore to 4 to re-enable the one-quartet-a-day cap.
-const ROUNDS_PER_DAY = Infinity;
+// One quartet a day per mode. Setting this to Infinity draws the whole roster
+// in a single day (handy for accuracy passes over every entry) — the round
+// chip already drops its "/ N" suffix when the run is open-ended.
+const ROUNDS_PER_DAY = 4;
 
-// Characters mode is parked as "coming soon" while it's being reworked.
-// TEMP: re-enabled (alongside the lifted daily/skip caps) so every character
-// can be flipped through for accuracy verification. Restore to false to park
-// the tab again when verification is done.
+// Characters mode toggle. Set to false to park the tab as a disabled
+// "coming soon" stub (see applyTabAvailability).
 const CHARACTERS_ENABLED = true;
 
 // Last UTC date the player opened the app. Compared to today's key on init
@@ -144,6 +142,7 @@ const els = {
   tabGrid: document.getElementById('tab-grid'),
   tabs: document.getElementById('tabs'),
   stage: document.getElementById('stage'),
+  actions: document.getElementById('actions'),
 };
 
 // On phones the caption sits above the photo with a two-line budget: it wraps
@@ -197,6 +196,8 @@ let focusRow = 0;
 let focusCol = 0;
 let countdownTimer = null;
 let cachedShareCanvas = null;
+// PNG encode of cachedShareCanvas, started as soon as the card renders.
+let cachedShareBlob = null;
 // Pending "finished, show share card after 1.1s" timer. Stashed so a tab
 // switch can cancel it — without that, the timer fires against whichever
 // game is current at firing time and can blow away an in-progress UI.
@@ -265,6 +266,10 @@ async function init() {
       throw new Error('No puzzles available — both rosters are empty.');
     }
     setMode(games.items ? 'items' : 'grid');
+    // Warm the share module once the round is up and the network is quiet.
+    const warmShare = () => { loadShare().catch(() => { /* retried on demand */ }); };
+    if ('requestIdleCallback' in window) requestIdleCallback(warmShare, { timeout: 4000 });
+    else setTimeout(warmShare, 2000);
     onceStorageWriteFailed(() => {
       toast("Your progress won't be saved in this browsing mode.");
     });
@@ -317,6 +322,7 @@ function showInitError(err) {
 }
 
 async function tryRenderSharedView(s, allCharacters) {
+  const { decodeSharePayload, snapshotFromPayload, renderShareCard } = await loadShare();
   const payload = decodeSharePayload(s);
   if (!payload) return false;
   const snap = snapshotFromPayload(payload, allCharacters);
@@ -336,6 +342,7 @@ async function tryRenderSharedView(s, allCharacters) {
   els.status.textContent = `Shared result · ${snap.date} · ${wins} of ${snap.rounds.length} solved`;
   els.stage?.classList.add('stage--finished');
   els.shareSlot.hidden = false;
+  showShareSkeleton();
   const canvas = await renderShareCard(snap);
   canvas.classList.add('share-card');
   els.shareSlot.replaceChildren(canvas);
@@ -420,25 +427,36 @@ function cancelFinishedAnnounce() {
   finishedAnnounceGame = null;
 }
 
-// Two-frame opacity dip on the stage. Fade out, swap content on the next
-// frame, then fade back in — the tab indicator's CSS transition runs in
-// parallel so the whole swap reads as one motion.
+// Opacity dip on the stage: fade out, swap the content once it's (nearly)
+// invisible, then fade back in — the tab indicator's CSS transition runs in
+// parallel so the whole swap reads as one motion. STAGE_FADE_MS tracks the
+// .stage--switching transition in styles.css; swapping any sooner (the old
+// two-frame swap) happened while the outgoing round was still ~90% opaque, so
+// it popped instead of fading. A rapid second tab switch cancels the pending
+// swap; the latest apply wins.
+const STAGE_FADE_MS = 150;
+let crossfadeTimer = 0;
 function crossfadeStage(apply) {
+  clearTimeout(crossfadeTimer);
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    els.stage.classList.remove('stage--switching');
+    apply();
+    return;
+  }
   els.stage.classList.add('stage--switching');
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      apply();
-      els.stage.classList.remove('stage--switching');
-    });
-  });
+  crossfadeTimer = setTimeout(() => {
+    crossfadeTimer = 0;
+    apply();
+    els.stage.classList.remove('stage--switching');
+  }, STAGE_FADE_MS);
 }
 
-// Photo fallback chain: optimized WebP → original PNG → generated initials
-// placeholder. Each onerror advances one step, so a character whose WebP
-// *and* PNG both fail still shows the placeholder card instead of a blank
-// frame. The placeholder is a data URI, so the chain always terminates.
+// Photo fallback chain: optimized WebP → generated initials placeholder.
+// Each onerror advances one step, so a photo that fails to load still shows
+// the placeholder card instead of a blank frame. The placeholder is a data
+// URI, so the chain always terminates.
 function attachImageFallbackChain(img, c) {
-  const chain = [c.imageFallback, c.imagePlaceholder]
+  const chain = [c.imagePlaceholder]
     .filter(src => src && src !== c.imageSrc);
   img.onerror = () => {
     const next = chain.shift();
@@ -500,13 +518,24 @@ function renderHeaders() {
 // hue, strength, and bloom track how close the guess was. Burning amber for
 // a near miss, a thin cool steel-blue rim for a far one. No words, no rows
 // crossed out — the ordered gradient plus the glow temperature is the hint.
+//
+// The temperature runs amber → neutral → blue by fading saturation out and
+// back in, rather than sweeping the hue straight across: a straight sweep from
+// 38° to 215° passes through yellow-green and green, and green is the colour
+// of a correct answer.
 const GLOW_DE_NEAR = 2.5;
 const GLOW_DE_FAR = 16;
+const GLOW_HUE_WARM = 38;
+const GLOW_HUE_COOL = 215;
+const GLOW_SAT = 85;
 function applyProximityGlow(btn, dE) {
   if (!btn || !Number.isFinite(dE)) return;
   const t = Math.min(1, Math.max(0, (dE - GLOW_DE_NEAR) / (GLOW_DE_FAR - GLOW_DE_NEAR)));
   const mix = (a, b) => a + (b - a) * t;
-  btn.style.setProperty('--miss-h', String(Math.round(mix(38, 215))));
+  const warm = t < 0.5;
+  const sat = GLOW_SAT * Math.abs(1 - t * 2);
+  btn.style.setProperty('--miss-h', String(warm ? GLOW_HUE_WARM : GLOW_HUE_COOL));
+  btn.style.setProperty('--miss-s', `${Math.round(sat)}%`);
   btn.style.setProperty('--miss-a', mix(0.95, 0.30).toFixed(2));
   btn.style.setProperty('--miss-blur', `${Math.round(mix(14, 4))}px`);
   btn.classList.add('cell--missed');
@@ -518,10 +547,15 @@ function isItemRound(s) {
 
 function renderRound() {
   hideShareSlot();
+  cancelSwipeHint();
   els.stage?.classList.remove('stage--finished');
   const s = game.snapshot();
   const c = s.character;
   const round = s.rounds[s.roundIndex];
+  // Lets the phone layout size the photo per board: Characters rounds hand
+  // height to the 5x5 board so its swatches stay finger-sized.
+  els.stage?.classList.toggle('stage--grid', s.board.kind === 'grid');
+  els.stage?.classList.toggle('stage--quad', s.board.kind === 'quad');
 
   els.characterCard.hidden = false;
   // Drop `revealed` before swapping src so the next paint always shows the
@@ -549,6 +583,7 @@ function renderRound() {
     attachImageFallbackChain(els.imgBg, c);
     els.imgBg.src = c.imageSrc;
   }
+  watchPhotoLoad();
   els.img.alt = isItemRound(s)
     ? `Scene from ${c.show || c.name} (grayscale until revealed)`
     : `Cartoon character (grayscale until revealed)`;
@@ -600,8 +635,43 @@ function renderRound() {
   updateSkipButton();
 
   if (!s.revealed && s.skipsLeft > 0) {
-    setTimeout(triggerSwipeHint, 600);
+    scheduleSwipeHint(600);
   }
+}
+
+// Photo loading state. On a slow connection the frame would otherwise sit as
+// a black box while the question and swatches are already live — and a guess
+// could be made before the photo ever appeared. Until the round's photo has
+// loaded, the frame shows a shimmer placeholder and the swatches wait,
+// dimmed; the photo fades in when it arrives. PHOTO_WAIT_MS caps the wait so
+// a stalled photo can never block the game. Cached photos skip all of this.
+const PHOTO_WAIT_MS = 3000;
+let photoLoadToken = 0;
+let photoWaitTimer = 0;
+function watchPhotoLoad() {
+  const token = ++photoLoadToken;
+  clearTimeout(photoWaitTimer);
+  const done = () => {
+    if (token !== photoLoadToken) return;
+    clearPhotoPending();
+  };
+  if (els.img.complete && els.img.naturalWidth > 0) {
+    done();
+    return;
+  }
+  els.photoFrame.classList.add('photo--loading');
+  els.stage?.classList.add('stage--photo-pending');
+  // The fallback chain (WebP → placeholder art) swaps src on error, so a
+  // `load` always arrives eventually; the timer covers a photo that stalls.
+  els.img.addEventListener('load', done, { once: true });
+  photoWaitTimer = setTimeout(done, PHOTO_WAIT_MS);
+}
+
+function clearPhotoPending() {
+  clearTimeout(photoWaitTimer);
+  photoWaitTimer = 0;
+  els.photoFrame.classList.remove('photo--loading');
+  els.stage?.classList.remove('stage--photo-pending');
 }
 
 function promptText(c) {
@@ -709,7 +779,13 @@ function quadButton(index) {
 // scroll) and feel instant.
 const ARM_MOVE_PX = 10;
 const ARM_SCROLL_PX = 4;
-const ARM_MAX_MS = 500;
+// Generous enough for a slow, deliberate press. When a hold does run past it,
+// the armed ring drops while the finger is still down, so the cancel is
+// visible rather than a silent no-op on release.
+const ARM_MAX_MS = 1200;
+// A click this soon after pointer activity on the same swatch is the
+// browser's own echo of a tap the pointer handlers already judged.
+const CLICK_ECHO_MS = 800;
 
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -727,8 +803,13 @@ function spawnRipple(btn, e) {
 
 function attachArmedTap(btn, commit) {
   let armed = null;
+  let expireTimer = 0;
+  let lastPointerAt = -Infinity;
+  const isSettled = () =>
+    btn.classList.contains('cell--wrong') || btn.classList.contains('cell--correct');
 
   const disarm = () => {
+    clearTimeout(expireTimer);
     if (!armed) return;
     btn.classList.remove('cell--armed');
     try { btn.releasePointerCapture(armed.pointerId); } catch {}
@@ -736,7 +817,8 @@ function attachArmedTap(btn, commit) {
   };
 
   btn.addEventListener('pointerdown', (e) => {
-    if (btn.classList.contains('cell--wrong') || btn.classList.contains('cell--correct')) return;
+    lastPointerAt = performance.now();
+    if (isSettled()) return;
     if (armed) disarm();
     armed = {
       pointerId: e.pointerId,
@@ -747,6 +829,7 @@ function attachArmedTap(btn, commit) {
     };
     btn.classList.add('cell--armed');
     try { btn.setPointerCapture(e.pointerId); } catch {}
+    expireTimer = setTimeout(disarm, ARM_MAX_MS);
     spawnRipple(btn, e);
   });
 
@@ -758,6 +841,7 @@ function attachArmedTap(btn, commit) {
   });
 
   btn.addEventListener('pointerup', (e) => {
+    lastPointerAt = performance.now();
     if (!armed || e.pointerId !== armed.pointerId) {
       disarm();
       return;
@@ -772,8 +856,23 @@ function attachArmedTap(btn, commit) {
     }
   });
 
-  btn.addEventListener('pointercancel', disarm);
+  btn.addEventListener('pointercancel', () => {
+    lastPointerAt = performance.now();
+    disarm();
+  });
   btn.addEventListener('lostpointercapture', disarm);
+
+  // Screen readers (TalkBack, VoiceOver), switch access and voice control
+  // activate a button with a bare `click` — no pointer events at all — so the
+  // gesture above never runs for them. Commit those clicks directly. A click
+  // that trails real pointer activity on this swatch is the browser's echo of
+  // a tap already judged above (committed, or deliberately dropped as a
+  // scroll/drag), so it's ignored.
+  btn.addEventListener('click', () => {
+    if (performance.now() - lastPointerAt < CLICK_ECHO_MS) return;
+    if (isSettled()) return;
+    commit();
+  });
 }
 
 function onGridKeyDown(e) {
@@ -860,6 +959,10 @@ function submitGuess(pos, btn) {
       applyProximityGlow(btn, result.cell.dE);
     }
     navigator.vibrate?.(60);
+    // The swipe-hint wiggle outranks .shake in the cascade, so drop it (and
+    // any queued one) or the wrong-guess shake would be swallowed.
+    cancelSwipeHint();
+    els.photoFrame.classList.remove('swipe-hint');
     flash(els.photoFrame, 'shake');
     els.status.textContent = `Not quite. ${result.guessesLeft} guess${result.guessesLeft === 1 ? '' : 'es'} left.`;
     updateChips();
@@ -940,10 +1043,11 @@ function revealRound(announce = true, skipped = false) {
     els.next.hidden = false;
     // Only steal focus for a live reveal. This path also runs when a
     // refresh restores an already-revealed round (announce=false), where
-    // yanking focus on page load would scroll the page and surprise
-    // keyboard/screen-reader users.
-    if (announce) els.next.focus();
-    if (announce) setTimeout(triggerSwipeHint, 800);
+    // yanking focus on page load would surprise keyboard/screen-reader
+    // users. preventScroll: focusing would otherwise scroll the page to the
+    // button after every answer — a visible jump on phones.
+    if (announce) els.next.focus({ preventScroll: true });
+    if (announce) scheduleSwipeHint(800);
   }
   updateChips();
 }
@@ -1054,30 +1158,40 @@ function advanceRound() {
   }
 }
 
-function performSkip(viaSwipe = false) {
+// Skipping always reveals the answer — from the button or a swipe — so the
+// player learns it before moving on; they then tap Next or swipe again to
+// advance. If skipping was the final unfinished round, auto-roll into the
+// share screen.
+function performSkip() {
   const result = game.skip();
   if (result.kind === 'no-skips' || result.kind === 'noop') return false;
-  if (viaSwipe) {
-    // Swipe is the "fast" path — just advance, no reveal pause.
-    advanceRound();
-  } else {
-    // Button is the "deliberate" path — reveal so the player learns the
-    // answer, then they tap or swipe to advance. If skipping was the
-    // final unfinished round, auto-roll into the share screen.
-    renderRound();
-    if (game.snapshot().finished) {
-      scheduleFinishedAnnounce();
-    }
+  renderRound();
+  if (game.snapshot().finished) {
+    scheduleFinishedAnnounce();
   }
   return true;
 }
 
 els.next.addEventListener('click', advanceRound);
-els.skip.addEventListener('click', () => performSkip(false));
+
+// The Skip/Next bar is sticky on phones. Hide the whole bar — not just its
+// buttons — whenever neither button is showing, so an empty scrim never sits
+// over the board. Observing the buttons' `hidden` attribute keeps this in
+// sync with every code path that toggles them.
+function syncActionsBar() {
+  if (els.actions) els.actions.hidden = els.skip.hidden && els.next.hidden;
+}
+const actionsObserver = new MutationObserver(syncActionsBar);
+for (const btn of [els.skip, els.next]) {
+  actionsObserver.observe(btn, { attributes: true, attributeFilter: ['hidden'] });
+}
+syncActionsBar();
+els.skip.addEventListener('click', () => performSkip());
 
 // Swipe-to-advance / swipe-to-skip. Once a round is revealed, a horizontal
 // swipe advances to the next round. While a round is still in progress, a
-// swipe consumes a skip and advances. If skips are exhausted we snap back.
+// swipe consumes a skip and reveals the answer (same as the Skip button). If
+// skips are exhausted we snap back.
 attachSwipeToAdvance(els.photoFrame);
 
 function attachSwipeToAdvance(target) {
@@ -1174,18 +1288,19 @@ function attachSwipeToAdvance(target) {
     try { target.releasePointerCapture(pointerId); } catch { /* ignore */ }
     const m = swipeMode();
     const commit = pointerType === 'mouse' ? COMMIT_MOUSE : COMMIT_TOUCH;
-    if (wasHorizontal && m !== 'none' && Math.abs(dx) >= commit) {
+    if (wasHorizontal && m === 'skip' && Math.abs(dx) >= commit) {
+      // Skip keeps the photo on stage: snap it back and reveal the answer in
+      // place, exactly like the Skip button. Only advancing flings it away.
+      reset(true);
+      performSkip();
+    } else if (wasHorizontal && m === 'next' && Math.abs(dx) >= commit) {
       const dir = dx > 0 ? 1 : -1;
       target.style.transition = 'transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1), opacity 220ms ease';
       target.style.transform = `translateX(${dir * window.innerWidth}px) rotate(${dir * 8}deg)`;
       target.style.opacity = '0';
       setTimeout(() => {
         reset(false);
-        if (m === 'skip') {
-          performSkip(true);
-        } else {
-          advanceRound();
-        }
+        advanceRound();
       }, 220);
     } else {
       reset(true);
@@ -1198,11 +1313,12 @@ function attachSwipeToAdvance(target) {
 
 if (els.share) {
   els.share.addEventListener('click', async () => {
-    if (!cachedShareCanvas) return;
+    if (!cachedShareCanvas || !shareModule) return;
     els.share.disabled = true;
     try {
-      const result = await shareCanvas(cachedShareCanvas, game.snapshot(), {
+      const result = await shareModule.shareCanvas(cachedShareCanvas, game.snapshot(), {
         dayStreak: completedDayStreak(),
+        blob: cachedShareBlob,
       });
       if (result?.kind === 'shared') {
         toast('Shared!');
@@ -1224,8 +1340,9 @@ if (els.link) {
     // combined both-modes blurb on a one-mode link would oversell what the
     // recipient actually opens. If the payload ever learns to carry both
     // modes, switch this back to combinedShareText alongside it.
-    const url = shareLinkUrl(game.snapshot());
-    const text = shareText(game.snapshot(), { dayStreak: completedDayStreak() });
+    if (!shareModule) return;
+    const url = shareModule.shareLinkUrl(game.snapshot());
+    const text = shareModule.shareText(game.snapshot(), { dayStreak: completedDayStreak() });
     // Prefer the native share sheet so users on phones can fling the URL
     // straight into Messages / Mail. Falls back to clipboard otherwise.
     if (navigator.share) {
@@ -1254,12 +1371,13 @@ if (els.copyResult) {
   els.copyResult.addEventListener('click', async () => {
     // If both modes are finished, the on-screen card is the combined view —
     // mirror that in the emoji text so the copy matches what the user sees.
+    if (!shareModule) return;
     const itemsSnap = games.items?.snapshot();
     const gridSnap = games.grid?.snapshot();
     const dayStreak = completedDayStreak();
     const text = (itemsSnap?.finished && gridSnap?.finished)
-      ? combinedShareText({ items: itemsSnap, grid: gridSnap }, { dayStreak })
-      : shareText(game.snapshot(), { dayStreak });
+      ? shareModule.combinedShareText({ items: itemsSnap, grid: gridSnap }, { dayStreak })
+      : shareModule.shareText(game.snapshot(), { dayStreak });
     try {
       await navigator.clipboard.writeText(text);
       flashLabel(els.copyResult, 'Copied!', 'Copy emoji');
@@ -1276,6 +1394,8 @@ function flashLabel(btn, hot, cool) {
 
 async function showFinished() {
   cancelFinishedAnnounce();
+  cancelSwipeHint();
+  clearPhotoPending();
   const s = game.snapshot();
   // End-of-game is intentionally minimal: the social share card, the three
   // action buttons, and the day-streak line in the status slot. The
@@ -1311,7 +1431,8 @@ async function showFinished() {
   els.shareSlot.hidden = false;
   els.shareActions.hidden = false;
   els.share.hidden = false;
-  els.share.disabled = false;
+  // Enabled once the card (and its image) exist — see below.
+  els.share.disabled = true;
   els.share.textContent = 'Save image';
   els.link.hidden = false;
   els.link.textContent = 'Copy link';
@@ -1326,12 +1447,34 @@ async function showFinished() {
   const itemsSnap = games.items?.snapshot();
   const gridSnap = games.grid?.snapshot();
   const bothDone = !!(itemsSnap?.finished && gridSnap?.finished);
-  const newCanvas = bothDone
-    ? await renderCombinedShareCard({ items: itemsSnap, grid: gridSnap }, { dayStreak: dayStreak.streak })
-    : await renderShareCard(s, { dayStreak: dayStreak.streak });
+  // Placeholder while the card renders (slow connections: loading share.js
+  // and the portraits). A canvas already in the slot — tab switch between two
+  // finished modes — stays up instead, and is swapped in place.
+  showShareSkeleton();
+  const forGame = game;
+  let share, newCanvas;
+  try {
+    share = await loadShare();
+    newCanvas = bothDone
+      ? await share.renderCombinedShareCard({ items: itemsSnap, grid: gridSnap }, { dayStreak: dayStreak.streak })
+      : await share.renderShareCard(s, { dayStreak: dayStreak.streak });
+  } catch {
+    // Most likely offline before share.js was ever cached. The streak line
+    // still shows; the card appears on the next visit to this screen.
+    if (forGame === game) {
+      els.shareSlot.replaceChildren();
+      toast("Couldn't build the share card — check your connection.");
+    }
+    return;
+  }
+  // The player may have switched to an unfinished tab while the card was
+  // rendering; that tab's round owns the stage now.
+  if (forGame !== game || !els.stage?.classList.contains('stage--finished')) return;
   newCanvas.classList.add('share-card');
   cachedShareCanvas = newCanvas;
+  cachedShareBlob = share.encodeCanvas(newCanvas);
   els.shareSlot.replaceChildren(newCanvas);
+  els.share.disabled = false;
 
   // Countdown is suppressed on the end screen per spec, but we still need its
   // refresh-on-new-UTC-day side effect so the page reloads at midnight and
@@ -1346,11 +1489,21 @@ function hideShareSlot() {
   }
   if (els.shareActions) els.shareActions.hidden = true;
   cachedShareCanvas = null;
+  cachedShareBlob = null;
   if (countdownTimer) {
     clearInterval(countdownTimer);
     countdownTimer = null;
   }
   if (els.countdown) els.countdown.textContent = '';
+}
+
+// Card-shaped shimmer placeholder for the share slot while a card renders.
+function showShareSkeleton() {
+  if (els.shareSlot.querySelector('canvas')) return;
+  const ph = document.createElement('div');
+  ph.className = 'share-card share-card--loading';
+  ph.setAttribute('aria-hidden', 'true');
+  els.shareSlot.replaceChildren(ph);
 }
 
 function startCountdown({ silent = false } = {}) {
@@ -1445,9 +1598,34 @@ function flash(el, cls) {
   setTimeout(() => el.classList.remove(cls), 500);
 }
 
+// The swipe hint (a little wiggle of the photo) teaches the swipe gesture,
+// so it only plays for a player's first few rounds rather than every round
+// forever. Queued hints are cancelled when the round changes, and a hint
+// never starts over another photo motion (the wrong-guess shake, a drag).
+const SWIPE_HINT_LIMIT = 3;
+const STORAGE_SWIPE_HINTS = 'wcat:v1:swipeHints';
+let swipeHintTimer = 0;
+
+function scheduleSwipeHint(delay) {
+  cancelSwipeHint();
+  if (prefersReducedMotion.matches) return;
+  if ((Number(readJson(STORAGE_SWIPE_HINTS)) || 0) >= SWIPE_HINT_LIMIT) return;
+  swipeHintTimer = setTimeout(triggerSwipeHint, delay);
+}
+
+function cancelSwipeHint() {
+  clearTimeout(swipeHintTimer);
+  swipeHintTimer = 0;
+}
+
 function triggerSwipeHint() {
+  swipeHintTimer = 0;
   if (prefersReducedMotion.matches) return;
   const el = els.photoFrame;
+  if (el.classList.contains('shake') || el.style.transform) return;
+  const shown = Number(readJson(STORAGE_SWIPE_HINTS)) || 0;
+  if (shown >= SWIPE_HINT_LIMIT) return;
+  writeJson(STORAGE_SWIPE_HINTS, shown + 1);
   el.classList.remove('swipe-hint');
   void el.offsetWidth;
   el.classList.add('swipe-hint');
@@ -1476,42 +1654,6 @@ function toast(message) {
   toastTimer = setTimeout(() => {
     host.classList.remove('toast--visible');
   }, duration);
-}
-
-// Hard reset: wipe every wcat:* key (last-visit record, in-progress run, day
-// streak) and reload to a clean URL. Two-tap confirm so a stray click can't
-// nuke progress — the first tap arms it, a second within 3s commits,
-// otherwise it disarms.
-const hardResetBtn = document.getElementById('hard-reset-btn');
-if (hardResetBtn) {
-  const idleLabel = 'Hard reset';
-  const armedLabel = 'Tap again to confirm';
-  let armedTimer = null;
-  const disarm = () => {
-    hardResetBtn.textContent = idleLabel;
-    hardResetBtn.classList.remove('btn--hard-reset-armed');
-    armedTimer = null;
-  };
-  hardResetBtn.addEventListener('click', () => {
-    if (!armedTimer) {
-      hardResetBtn.textContent = armedLabel;
-      hardResetBtn.classList.add('btn--hard-reset-armed');
-      armedTimer = setTimeout(disarm, 3000);
-      return;
-    }
-    clearTimeout(armedTimer);
-    armedTimer = null;
-    try {
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('wcat:')) localStorage.removeItem(key);
-      }
-    } catch { /* private mode — nothing to clear */ }
-    const url = new URL(window.location.href);
-    url.search = '';
-    url.hash = '';
-    window.location.replace(url.toString());
-  });
 }
 
 // Offline support: the manifest advertises a standalone (installable) app, so

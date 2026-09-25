@@ -1,3 +1,32 @@
+/* ---------- Fonts ---------- */
+/* Self-hosted latin subsets (see assets/fonts/OFL.txt). Loading them from
+   Google Fonts put a render-blocking cross-origin stylesheet in front of the
+   first paint — seconds on a slow connection. `swap` paints text straight
+   away in a fallback face; the wordmark face is preloaded in index.html so
+   the intro/title don't visibly swap fonts. Inter and Outfit are variable
+   fonts, so one file each covers every weight in use. */
+@font-face {
+  font-family: "Cormorant Garamond";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("assets/fonts/cormorant-garamond-700-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url("assets/fonts/inter-var-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 300 600;
+  font-display: swap;
+  src: url("assets/fonts/outfit-var-latin.woff2") format("woff2");
+}
+
 /* ---------- Tokens ---------- */
 :root {
   /* Surfaces */
@@ -34,7 +63,10 @@
   --accent: #4dd9c0;
   --accent-soft: rgba(77, 217, 192, 0.16);
   --danger: #ff5970;
-  --success: #4dd9c0;
+  /* Correct-answer green — the same green as the share card's correct box
+     and the 🟩 in the emoji share, so "correct" reads identically everywhere. */
+  --success: #3ccb7f;
+  --success-glow: rgba(60, 203, 127, 0.45);
 
   /* Whimsy palette — drives the title, blob, tab gradient, chip dots, and
      the rainbow seam above the footer. Six stops on a single gradient keep
@@ -94,15 +126,18 @@ html, body {
 }
 
 /* Subtle grain over the page — keeps large flat black areas from looking
-   plastic. Painted with a tiny SVG noise so we don't ship an asset. */
+   plastic. Painted with a tiny SVG noise so we don't ship an asset. Plain
+   alpha blending, not a blend mode: a full-screen fixed `mix-blend-mode`
+   layer has to be re-blended whenever anything beneath it repaints (the
+   animated title blob, every frame), a real cost on budget phones for grain
+   that's barely visible either way. */
 body::after {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.04;
-  mix-blend-mode: overlay;
+  opacity: 0.03;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.7'/></svg>");
 }
 body > * { position: relative; z-index: 1; }
@@ -125,18 +160,30 @@ body > * { position: relative; z-index: 1; }
   flex-direction: column;
   overflow: hidden;
   background: var(--bg);
-  /* Never block taps — the game isn't interactive until it's revealed
-     anyway, and this guarantees the overlay can't trap a stray touch. */
-  pointer-events: none;
+  /* Block taps while the overlay covers the screen: the game is rendered
+     (and tappable) underneath, so a pass-through tap would lock in a guess
+     on a board the player can't see. A tap here skips the intro instead
+     (inline script in index.html). */
+  pointer-events: auto;
+  touch-action: none;
   /* The closing act: only the backdrop fades (not the whole overlay), so the
      game is revealed behind while the wordmark, a child on top, keeps doing
      its own pop. Quick, so it reads as a snap into the game rather than a
      slow dissolve. */
-  transition: background-color 260ms var(--ease-out);
+  transition: background-color 260ms var(--ease-out), opacity 180ms var(--ease-out);
 }
 
+/* Once the game is revealed behind the popping wordmark it's live, so taps
+   go straight through to it. */
 .loader-intro--out {
   background-color: transparent;
+  pointer-events: none;
+}
+
+/* Tap/keypress skip: fade the whole overlay out fast. It keeps catching
+   pointer events until the inline script removes it after the finger lifts. */
+.loader-intro--skip {
+  opacity: 0;
 }
 
 .loader-strip {
@@ -568,7 +615,13 @@ body {
   transition: opacity 200ms var(--ease-out);
 }
 
-.stage--switching { opacity: 0; }
+/* Outgoing content fades out before the swap (STAGE_FADE_MS in main.js) and
+   can't be tapped mid-fade — its handlers would act on the incoming mode. */
+.stage--switching {
+  opacity: 0;
+  pointer-events: none;
+  transition-duration: 150ms;
+}
 
 /* End-of-day layout: collapse the stage to just the share card and the three
    share actions, centered. Anything else (photo card, title, board, quad,
@@ -660,6 +713,41 @@ body {
   user-select: none;
   -webkit-user-select: none;
   pointer-events: none;
+  /* Photos fade in once loaded (see .photo--loading below). */
+  transition: opacity 220ms var(--ease-out);
+}
+
+/* Photo loading state (watchPhotoLoad in main.js): until the round's photo
+   arrives, hide the empty images and run a soft shimmer across the frame so
+   a slow connection reads as "loading", not as a broken black box. */
+.photo--loading img {
+  opacity: 0;
+}
+.photo--loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0) 30%,
+    rgba(255, 255, 255, 0.07) 50%,
+    rgba(255, 255, 255, 0) 70%
+  ) var(--bg-elev);
+  background-size: 250% 100%;
+  animation: photo-shimmer 1.3s linear infinite;
+}
+@keyframes photo-shimmer {
+  from { background-position: 100% 0; }
+  to   { background-position: -150% 0; }
+}
+
+/* The swatches wait for the photo too (capped at a few seconds in JS), so
+   nobody guesses before seeing what they're guessing about. */
+.stage--photo-pending .quad,
+.stage--photo-pending .grid {
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 220ms var(--ease-out);
 }
 
 /* Foreground image: `contain` shows the whole 4:3 photo with no crop. When the
@@ -687,14 +775,14 @@ body {
    briefly shows the next photo (or lingering old photo) in color. */
 .photo.revealed #character-img {
   filter: grayscale(0) contrast(1);
-  transition: filter 600ms var(--ease-out);
+  transition: filter 600ms var(--ease-out), opacity 220ms var(--ease-out);
 }
 
 /* Reveal drops only the backdrop's grayscale — blur and dimming stay so it
    keeps reading as a soft fill behind the sharp foreground. */
 .photo.revealed .photo-bg {
   filter: grayscale(0) blur(22px) brightness(0.55);
-  transition: filter 600ms var(--ease-out);
+  transition: filter 600ms var(--ease-out), opacity 220ms var(--ease-out);
 }
 
 /* Character title / round prompt placed between photo and grid. Reserved
@@ -728,11 +816,15 @@ body {
   gap: var(--gap);
 }
 
-/* `display: grid` above has the same specificity as the UA `[hidden]`
-   rule, so we need an explicit override to honor the `hidden` attribute
-   when the round is using the quad board instead. */
+/* `display: grid`/`flex` on these outrank the UA `[hidden]` rule, so honour
+   the attribute explicitly: the board/quad swap per round type, the photo
+   card hides while loading or on the error screen, and the Score chip only
+   exists in Characters mode. */
 .board[hidden],
-.quad[hidden] {
+.quad[hidden],
+.card[hidden],
+.chip[hidden],
+.actions[hidden] {
   display: none;
 }
 
@@ -892,8 +984,8 @@ body {
    Grid-only — quad misses keep the plain X treatment. */
 .cell--missed {
   box-shadow:
-    0 0 0 2px hsla(var(--miss-h, 215), 85%, 62%, var(--miss-a, 0.3)),
-    0 0 var(--miss-blur, 4px) hsla(var(--miss-h, 215), 90%, 60%, calc(var(--miss-a, 0.3) * 0.7)),
+    0 0 0 2px hsla(var(--miss-h, 215), var(--miss-s, 85%), 62%, var(--miss-a, 0.3)),
+    0 0 var(--miss-blur, 4px) hsla(var(--miss-h, 215), var(--miss-s, 85%), 60%, calc(var(--miss-a, 0.3) * 0.7)),
     0 0 0 1px rgba(255, 255, 255, 0.08);
   z-index: 1;
 }
@@ -914,7 +1006,7 @@ body {
   box-shadow:
     0 0 0 3px #fff,
     0 0 0 6px var(--success),
-    0 8px 22px rgba(77, 217, 192, 0.45),
+    0 8px 22px var(--success-glow),
     0 6px 18px rgba(0, 0, 0, 0.5);
   z-index: 3;
   animation: pop 420ms var(--ease-spring);
@@ -939,7 +1031,7 @@ body {
   box-shadow:
     0 0 0 3px #10141b,
     0 0 0 6px var(--success),
-    0 8px 22px rgba(77, 217, 192, 0.45),
+    0 8px 22px var(--success-glow),
     0 6px 18px rgba(0, 0, 0, 0.5);
 }
 .cell--correct.cell--correct-dark::after {
@@ -998,6 +1090,22 @@ body {
   background: var(--bg);
 }
 
+/* Placeholder while the card renders (showShareSkeleton in main.js). */
+.share-card--loading {
+  aspect-ratio: 1 / 1;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0) 30%,
+    rgba(255, 255, 255, 0.05) 50%,
+    rgba(255, 255, 255, 0) 70%
+  ) var(--bg-elev);
+  background-size: 250% 100%;
+  animation: photo-shimmer 1.3s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .share-card--loading { animation: none; }
+}
+
 .countdown {
   margin: 0;
   text-align: center;
@@ -1007,6 +1115,9 @@ body {
   letter-spacing: 0.02em;
   min-height: 1.4em;
 }
+/* Empty during play — don't let it reserve a row (and a row gap) that pushes
+   the Skip/Next buttons down. */
+.countdown:empty { display: none; }
 
 /* ---------- Status / actions ---------- */
 .status {
@@ -1170,22 +1281,6 @@ body {
   margin-top: clamp(20px, 4vw, 36px);
 }
 
-.btn--hard-reset {
-  font-size: 11px;
-  padding: 6px 12px;
-  min-height: 0;
-  opacity: 0.6;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.btn--hard-reset:hover { opacity: 1; }
-.btn--hard-reset-armed {
-  opacity: 1;
-  color: #2a1700;
-  background: #ffb24d;
-  border-color: transparent;
-}
-
 /* A thin rainbow accent above the footer ties the chrome together. */
 /* Imagery attribution — quieter than the main footer line. */
 .bottombar-legal {
@@ -1336,12 +1431,12 @@ body {
   .ripple { animation: none; display: none; }
   .photo.swipe-hint { animation: none; }
   .quad-cell { animation: none; }
+  .photo--loading::after { animation: none; }
 }
 
 /* ---------- Breakpoints ---------- */
-/* Narrow phones: tighten topbar padding. The title + scoreboard chips stay
-   on a single line beside each other (the title shrinks to make room) —
-   see the <=759px block below for the chip sizing and nowrap rules. */
+/* Narrow phones: tighten topbar padding. See the <=759px block below for the
+   chip sizing and wrapping rules. */
 @media (max-width: 480px) {
   .topbar {
     padding: 10px 14px;
@@ -1354,7 +1449,6 @@ body {
   .share-actions .btn { flex: 1 1 100%; min-width: 0; max-width: none; }
   .stage { gap: 8px; padding: 8px 12px; }
   .tabs { margin-top: 8px; }
-  .board { grid-template-columns: 22px minmax(0, 1fr); grid-template-rows: 22px minmax(0, 1fr); }
 }
 
 /* Phones: full-width photo, flexible swatches, no scroll. The stage
@@ -1365,18 +1459,16 @@ body {
 @media (max-width: 759px) {
   .stage {
     min-height: 0;
-    /* Gentle scroll instead of clip: on the shortest phones nothing is ever
-       fully cut off, while the swatch sizing below keeps it a single screen
-       in the common case. The bottom safe-area pad keeps the Skip/Next strip
-       clear of the home indicator / browser toolbar. */
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding: 6px 0 max(8px, env(safe-area-inset-bottom));
+    /* The page itself scrolls on the shortest phones (never an inner scroll
+       container — that clipped swatch glows and would stop the Skip/Next bar
+       below from sticking to the viewport). The bar carries the bottom
+       safe-area padding. */
+    padding: 6px 0 0;
     gap: 5px;
-    /* Square colour board/quad cap: shrinks the swatches (both dimensions, so
-       they stay square) enough to leave room for the prompt and the always-
-       visible Skip/Next bar without clipping. */
-    --swatch-cap: 32dvh;
+    /* Square 5x5 board size: never below 250px (≈44px swatches, the minimum
+       comfortable tap target), growing with the viewport height on taller
+       phones. The width cap below keeps it on-screen on narrow ones. */
+    --swatch-cap: max(250px, 40dvh);
   }
 
   .card {
@@ -1396,6 +1488,12 @@ body {
 
   .photo img {
     object-position: center;
+  }
+
+  /* Characters rounds give the height to the 5x5 board (its swatches need to
+     stay finger-sized); the photo only has to show who it is. */
+  .stage--grid .photo {
+    height: min(calc((100vw - 24px) * 3 / 4), 23dvh);
   }
 
   /* The question is the hero on phones: it sits above the photo (order:-1
@@ -1427,7 +1525,21 @@ body {
     min-height: 0;
   }
 
+  /* No A–E / 1–5 axis labels on phones: they aren't referenced anywhere on
+     screen, and dropping them hands their width to the swatches. The grid
+     takes the whole board square. */
+  .board-corner,
+  .col-headers,
+  .row-headers {
+    display: none;
+  }
+  .board {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
   .grid {
+    grid-row: 1;
+    grid-column: 1;
     height: 100%;
   }
 
@@ -1467,11 +1579,21 @@ body {
     min-height: auto;
   }
 
-  /* Slim, always-visible Skip / Next strip pinned under the swatches. */
+  /* Skip / Next bar. Sticky to the bottom of the viewport, so on phones too
+     short to fit the whole round it stays reachable while the board scrolls
+     beneath it. The background fades up from the page colour: invisible when
+     the bar sits in normal flow under the status line, a soft scrim when
+     content slides under it. It's hidden outright (JS toggles [hidden]) when
+     neither button is showing. */
   .actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 15;
     flex-shrink: 0;
-    padding: 0 14px;
-    margin-top: 2px;
+    width: 100%;
+    margin-top: 0;
+    padding: 10px 14px max(10px, env(safe-area-inset-bottom));
+    background: linear-gradient(to top, var(--bg) 55%, rgba(26, 26, 26, 0));
   }
   .actions .btn {
     min-height: 42px;
@@ -1490,9 +1612,10 @@ body {
     min-height: 34px;
     font-size: 13px;
   }
-  /* Keep the title + all five stat chips on a single line beside each other.
-     The title yields width first (flex-shrink) down to a 22px floor; the
-     scoreboard is locked so the chips never wrap or shrink off the line. */
+  /* The title sits on its own line above the chips. The chips wrap onto a
+     second line when they don't fit (six chips in Characters mode are wider
+     than most phones) — never overflow the screen, which made the whole page
+     pan sideways. */
   .title {
     font-size: clamp(22px, 5.2vw, 30px);
     min-width: 0;
@@ -1503,13 +1626,12 @@ body {
   .chip {
     padding: 5px 8px;
     /* 12px floor — 11px was below comfortable legibility for low-vision
-       players. Kept fixed (no clamp ceiling change) so the locked single
-       line of five chips still fits a 320px screen. */
+       players. */
     font-size: 12px;
     border-bottom-width: 3px;
     letter-spacing: 0;
   }
-  .scoreboard { gap: 4px; flex-wrap: nowrap; flex-shrink: 0; }
+  .scoreboard { gap: 6px 4px; flex-wrap: wrap; flex-shrink: 1; min-width: 0; }
 
   /* Thin the save buttons' chunky bottom slightly on phones, matching .chip. */
   .share-actions .btn { border-bottom-width: 3px; }
@@ -1522,7 +1644,9 @@ body {
   }
 
   .bottombar {
-    display: none;
+    margin-top: 12px;
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+    gap: 4px;
   }
 }
 
@@ -1545,8 +1669,8 @@ body {
   }
 }
 
-/* Slightly larger axis headers on roomy phones / tablets. */
-@media (min-width: 700px) {
+/* Larger axis headers on tablets and up (phones hide them entirely). */
+@media (min-width: 760px) {
   .board { grid-template-columns: 34px minmax(0, 1fr); grid-template-rows: 34px minmax(0, 1fr); }
   .hdr { font-size: 14px; min-height: 26px; }
 }
@@ -1558,8 +1682,11 @@ body {
 @media (min-width: 760px) {
   :root {
     /* Bound to the smaller of "more than half the viewport" and 480px so
-       the photo never dominates a tall desktop monitor. */
-    --photo-max-h: min(56dvh, 480px);
+       the photo never dominates a tall desktop monitor — and to whatever the
+       window height leaves after the chrome above and the status + Skip/Next
+       row below (~392px), so those buttons stay on screen on common laptop
+       windows (1366×800, 1280×720). Never below 300px. */
+    --photo-max-h: max(300px, min(56dvh, 480px, calc(100dvh - 392px)));
   }
   .stage {
     max-width: 1120px;

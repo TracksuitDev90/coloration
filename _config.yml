@@ -1,0 +1,14 @@
+# GitHub Pages builds this repo with Jekyll, which publishes every file by
+# default. Keep the photo sources and dev tooling in the repo but out of the
+# deployed site:
+#   - assets/IMG_*        original screenshots that scripts/process_photos.py
+#                         crops into assets/photos/ (~100MB, never loaded)
+#   - assets/photos/*.png full-size photo masters the WebPs are encoded from
+#                         (scripts/optimize_photos.py); the game only loads
+#                         the .webp copies
+#   - scripts/            one-off Python/Node asset tooling
+# Patterns are globs matched against repo-relative paths.
+exclude:
+  - "assets/IMG_*"
+  - "assets/photos/*.png"
+  - scripts

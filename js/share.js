@@ -65,7 +65,25 @@ function pickRandomTheme() {
   theme = makeTheme(Math.floor(Math.random() * 360));
 }
 
-const PIXEL_RATIO = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
+// Fixed 2× (a 2160px square): crisp in every social feed and on retina
+// screens, where the card never displays wider than 540 CSS px. 3× on
+// high-DPR phones meant a ~42MB canvas per render — and it re-renders on
+// every tab switch between finished modes.
+const PIXEL_RATIO = 2;
+
+// Portraits are nice-to-have on the card, not worth an unbounded wait: on a
+// slow connection the end screen draws after this long, with initials for
+// any portrait that hasn't arrived.
+const PORTRAIT_WAIT_MS = 2500;
+
+// Rounds that made it onto the card (won, lost or skipped) — unfinished rounds
+// aren't part of the result.
+function playedCharacters(snapshot) {
+  const chars = snapshot?.characters || [];
+  return (snapshot?.rounds || [])
+    .map((r, i) => (r.won || r.lost || r.skipped ? chars[i] : null))
+    .filter(Boolean);
+}
 
 // Above this count, the per-round portrait layout would crush rows below the
 // minimum readable size. We switch to a compact tile grid (one filled square
@@ -75,9 +93,10 @@ const COMPACT_GRID_THRESHOLD = 8;
 export async function renderShareCard(snapshot, { dayStreak = 0 } = {}) {
   // Fresh random main colour theme per render so shared cards vary.
   pickRandomTheme();
-  // Preload all portraits up-front so the draw path can pull them
-  // synchronously from cache. The in-game prefetch usually has them already.
-  await preloadAllPortraits(snapshot.characters || []);
+  // Preload the played rounds' portraits up-front so the draw path can pull
+  // them synchronously from cache. The in-game prefetch usually has them
+  // already; the wait is capped so a slow photo can't hold up the card.
+  await preloadAllPortraits(playedCharacters(snapshot));
   // Cormorant Garamond is used for the wordmark — canvas2d won't wait for
   // remote fonts, so trigger and await its load before drawing.
   await ensureFontsReady();
@@ -112,7 +131,7 @@ export async function renderShareCard(snapshot, { dayStreak = 0 } = {}) {
     drawPortraitRows(ctx, snapshot, playedRounds, bodyLeft, bodyTop, bodyRight, bodyBottom);
   }
 
-  drawFooter(ctx, dayStreak);
+  drawFooter(ctx, dayStreak, { proximity: snapshot.mode === 'grid' });
   return canvas;
 }
 
@@ -125,8 +144,7 @@ export async function renderCombinedShareCard({ items, grid }, { dayStreak = 0 }
   pickRandomTheme();
   // Preload portraits from both runs up-front; the in-game cache usually
   // already has them but the share view is sometimes hit from a cold start.
-  const allChars = [...(items?.characters || []), ...(grid?.characters || [])];
-  await preloadAllPortraits(allChars);
+  await preloadAllPortraits([...playedCharacters(items), ...playedCharacters(grid)]);
   await ensureFontsReady();
 
   const canvas = document.createElement('canvas');
@@ -167,7 +185,7 @@ export async function renderCombinedShareCard({ items, grid }, { dayStreak = 0 }
     bodyBottom - bodyTop,
   );
 
-  drawFooter(ctx, dayStreak);
+  drawFooter(ctx, dayStreak, { proximity: !!grid });
   return canvas;
 }
 
@@ -355,10 +373,18 @@ function drawPortraitRows(ctx, snapshot, played, left, top, right, bottom) {
   }
 }
 
+// A lost round's tile takes the colour of its closest miss — the same rule
+// as roundGlyph in the emoji ribbon, so the compact card and the text share
+// always agree.
+function lostRoundColor(round) {
+  const best = Math.min(9, ...round.guesses.map(g => (Number.isInteger(g.ring) ? g.ring : 9)));
+  return missColor({ ring: best });
+}
+
 function drawCompactGrid(ctx, snapshot, played, left, top, right, bottom) {
   // One square per played round, coloured by outcome. Same emoji vocabulary
-  // as the text share (correct=green, wrong=red, skipped=dark) so the visual
-  // and text shares feel cohesive.
+  // as the text share (correct=green, closest-miss proximity for losses,
+  // skipped=dark) so the visual and text shares feel cohesive.
   const availW = right - left;
   const availH = bottom - top;
 
@@ -385,7 +411,7 @@ function drawCompactGrid(ctx, snapshot, played, left, top, right, bottom) {
     if (round.won) {
       drawSolidBox(ctx, x, y, tile, radius, BOX_COLORS.correct);
     } else if (round.lost) {
-      drawSolidBox(ctx, x, y, tile, radius, BOX_COLORS.wrong);
+      drawSolidBox(ctx, x, y, tile, radius, lostRoundColor(round));
     } else {
       drawEmptyBox(ctx, x, y, tile, radius);
     }
@@ -473,7 +499,7 @@ function drawScorePill(ctx, text, right, top) {
   ctx.fillText(text, x + padX, y + padY);
 }
 
-function drawFooter(ctx, dayStreak = 0) {
+function drawFooter(ctx, dayStreak = 0, { proximity = false } = {}) {
   // Thin top rule.
   ctx.fillStyle = 'rgba(255,255,255,0.06)';
   ctx.fillRect(PADDING, H - 96, W - PADDING * 2, 1);
@@ -490,13 +516,18 @@ function drawFooter(ctx, dayStreak = 0) {
   // Result legend — three small boxes with labels. The "Coloration / Play
   // today's puzzle" wordmark used to sit on the left here but was removed;
   // the header already carries the brand, so the footer is just the key.
-  drawLegend(ctx, W - PADDING, H - 70);
+  drawLegend(ctx, W - PADDING, H - 70, proximity);
 }
 
-function drawLegend(ctx, right, top) {
+// The proximity keys only appear on cards that contain Characters rounds —
+// Items rounds are binary, so a "Close" key there would describe nothing.
+function drawLegend(ctx, right, top, proximity) {
   const items = [
     { color: BOX_COLORS.correct, label: 'Correct' },
-    { color: BOX_COLORS.near, label: 'Close' },
+    ...(proximity ? [
+      { color: BOX_COLORS.near, label: '1 away' },
+      { color: BOX_COLORS.close, label: '2 away' },
+    ] : []),
     { color: BOX_COLORS.wrong, label: 'Wrong' },
     { color: BOX_COLORS.empty, label: 'Skipped', stroke: BOX_COLORS.emptyStroke },
   ];
@@ -809,15 +840,30 @@ function preloadPortrait(src) {
   });
 }
 
-// Preload all portraits up-front so the synchronous draw path can read them
-// from cache. Returning a promise lets renderShareCard remain async without
-// scattering awaits through each row.
+// Preload portraits up-front so the synchronous draw path can read them from
+// cache. Returning a promise lets renderShareCard remain async without
+// scattering awaits through each row. Resolves after PORTRAIT_WAIT_MS at the
+// latest; drawPortrait falls back to initials for anything still loading.
 async function preloadAllPortraits(characters) {
-  await Promise.all(characters.map(c => preloadPortrait(c.imageSrc)));
+  let timer;
+  const timeout = new Promise(res => { timer = setTimeout(res, PORTRAIT_WAIT_MS); });
+  await Promise.race([
+    Promise.all(characters.map(c => preloadPortrait(c.imageSrc))),
+    timeout,
+  ]);
+  clearTimeout(timer);
 }
 
-export async function shareCanvas(canvas, snapshot, { dayStreak = 0 } = {}) {
-  const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+// PNG-encode a rendered card. main.js starts this as soon as the end screen
+// renders, so by the time the player taps "Save image" the bytes are ready
+// and navigator.share runs straight off the tap — Safari can refuse the share
+// sheet if a slow encode sits between the tap and the share call.
+export function encodeCanvas(canvas) {
+  return new Promise(res => canvas.toBlob(res, 'image/png'));
+}
+
+export async function shareCanvas(canvas, snapshot, { dayStreak = 0, blob: pending = null } = {}) {
+  const blob = await (pending || encodeCanvas(canvas));
   if (!blob) throw new Error('Could not encode share image');
   const filename = `coloration-${snapshot.date}.png`;
 
